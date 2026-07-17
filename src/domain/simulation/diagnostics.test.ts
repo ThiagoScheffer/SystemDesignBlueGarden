@@ -47,6 +47,9 @@ const tick = (
         retries: 0,
         timeouts: 0,
         failedRps: 0,
+        rejectedRps: 0,
+        processingFailureRps: 0,
+        unavailableRps: 0,
         diagnostics: [],
       },
     ]),
@@ -56,6 +59,8 @@ const tick = (
 
 const errorDiagnostic: NodeMetric['diagnostics'][number] = {
   id: 'error',
+  code: 'processing-failure',
+  topic: 'failure',
   category: 'error',
   severity: 'critical',
   title: 'Failure',

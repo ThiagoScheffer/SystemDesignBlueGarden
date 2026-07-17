@@ -3,6 +3,8 @@ import type {
   ArchitectureNodeV1,
 } from '../architecture/types';
 import type {
+  DiagnosticCode,
+  DiagnosticTopic,
   EdgeMetric,
   NodeMetric,
   SimulationDiagnostic,
@@ -15,32 +17,37 @@ const percent = (part: number, total: number) =>
   round(total > 0 ? (part / total) * 100 : 0);
 const displayPercent = (value: number) => Math.round(value).toLocaleString();
 
-const componentTip = (node: ArchitectureNodeV1) => {
+const componentTopic = (node: ArchitectureNodeV1): DiagnosticTopic => {
   if (node.type === 'cache') return 'cache';
   if (node.type === 'message-queue') return 'queue';
   if (node.type === 'sharding') return 'sharding';
   return 'capacity';
 };
 
+const isIncidentRate = (affectedRps: number, affectedPercent: number) =>
+  affectedRps >= 1 && affectedPercent >= 1;
+
 function diagnostic(
   id: string,
+  code: DiagnosticCode,
+  topic: DiagnosticTopic,
   category: SimulationDiagnostic['category'],
   severity: SimulationDiagnostic['severity'],
   title: string,
   explanation: string,
   affectedRps: number,
   affectedPercent: number,
-  tipId?: string,
 ): SimulationDiagnostic {
   return {
     id,
+    code,
+    topic,
     category,
     severity,
     title,
     explanation,
     affectedRps: round(affectedRps),
     affectedPercent: round(affectedPercent),
-    tipId,
   };
 }
 
@@ -51,35 +58,19 @@ export function buildNodeDiagnostics(
 ): SimulationDiagnostic[] {
   const result: SimulationDiagnostic[] = [];
   const loadPercent = metric.loadRatio === null ? null : metric.loadRatio * 100;
-  const loadTitle =
-    node.type === 'load-balancer' || node.type === 'api-gateway'
-      ? 'Overloaded'
-      : `${node.data.label} overloaded`;
 
   if (metric.status === 'failed' && metric.offeredRps > 0) {
     result.push(
       diagnostic(
         `${node.id}-unavailable`,
+        'component-unavailable',
+        'failure',
         'error',
         'critical',
         'Component unavailable',
         'No capacity is available, so incoming requests cannot be processed.',
         metric.offeredRps,
         100,
-        'failure',
-      ),
-    );
-  } else if (loadPercent !== null && loadPercent > 100) {
-    result.push(
-      diagnostic(
-        `${node.id}-overloaded`,
-        'error',
-        'critical',
-        loadTitle,
-        `${displayPercent(loadPercent)}% capacity, ${metric.backlog > 0 ? 'requests queueing' : 'demand exceeds throughput'}`,
-        Math.max(0, metric.offeredRps - metric.effectiveCapacity),
-        Math.max(0, loadPercent - 100),
-        componentTip(node),
       ),
     );
   }
@@ -89,6 +80,8 @@ export function buildNodeDiagnostics(
     result.push(
       diagnostic(
         `${node.id}-rejected`,
+        'capacity-rejection',
+        'capacity',
         'error',
         'critical',
         node.type === 'load-balancer' || node.type === 'api-gateway'
@@ -97,7 +90,6 @@ export function buildNodeDiagnostics(
         `${displayPercent(rejectedPercent)}% rejected at capacity`,
         metric.rejectedRps,
         rejectedPercent,
-        componentTip(node),
       ),
     );
   }
@@ -107,33 +99,37 @@ export function buildNodeDiagnostics(
       metric.processingFailureRps,
       metric.processedRps,
     );
-    result.push(
-      diagnostic(
-        `${node.id}-processing-failure`,
-        'error',
-        failurePercent >= 10 ? 'critical' : 'warning',
-        node.type === 'load-balancer' || node.type === 'api-gateway'
-          ? 'Server errors'
-          : 'Processing errors',
-        `${displayPercent(failurePercent)}% of requests failing`,
-        metric.processingFailureRps,
-        failurePercent,
-        'failure',
-      ),
-    );
+    if (isIncidentRate(metric.processingFailureRps, failurePercent)) {
+      result.push(
+        diagnostic(
+          `${node.id}-processing-failure`,
+          'processing-failure',
+          'failure',
+          'error',
+          failurePercent >= 10 ? 'critical' : 'warning',
+          node.type === 'load-balancer' || node.type === 'api-gateway'
+            ? 'Server errors'
+            : 'Processing errors',
+          `${displayPercent(failurePercent)}% of requests failing`,
+          metric.processingFailureRps,
+          failurePercent,
+        ),
+      );
+    }
   }
 
   if (loadPercent !== null && loadPercent >= 80) {
     result.push(
       diagnostic(
         `${node.id}-capacity-bottleneck`,
+        'capacity-saturation',
+        componentTopic(node),
         'bottleneck',
         loadPercent >= 100 ? 'critical' : 'warning',
         'Capacity saturation',
         `${displayPercent(loadPercent)}% of configured capacity is demanded.`,
         metric.offeredRps,
         loadPercent,
-        componentTip(node),
       ),
     );
   }
@@ -146,13 +142,14 @@ export function buildNodeDiagnostics(
     result.push(
       diagnostic(
         `${node.id}-queue-bottleneck`,
+        'queue-growth',
+        node.type === 'message-queue' ? 'queue' : componentTopic(node),
         'bottleneck',
         queuePercent >= 80 || metric.rejectedRps > 0 ? 'critical' : 'warning',
         node.type === 'message-queue' ? 'Consumer lag' : 'Queue buildup',
         `${Math.round(metric.backlog).toLocaleString()} requests are waiting${backlogGrowing ? ' and the backlog is growing' : ''}.`,
         metric.backlog,
         queuePercent,
-        node.type === 'message-queue' ? 'queue' : componentTip(node),
       ),
     );
   }
@@ -161,13 +158,14 @@ export function buildNodeDiagnostics(
     result.push(
       diagnostic(
         `${node.id}-latency-bottleneck`,
+        'high-tail-latency',
+        'latency',
         'bottleneck',
         metric.p95LatencyMs >= 1000 ? 'critical' : 'warning',
         'High tail latency',
         `P95 latency reached ${Math.round(metric.p95LatencyMs).toLocaleString()} ms.`,
         metric.processedRps,
         percent(metric.processedRps, metric.offeredRps),
-        'latency',
       ),
     );
   }
@@ -182,13 +180,14 @@ export function buildNodeDiagnostics(
     result.push(
       diagnostic(
         `${node.id}-cache-misses`,
+        'cache-miss-amplification',
+        'cache',
         'bottleneck',
         missPercent >= 80 ? 'critical' : 'warning',
         'Cache miss amplification',
         `${displayPercent(missPercent)}% of reads continue to the backing store.`,
         metric.cacheMissRps,
         missPercent,
-        'cache',
       ),
     );
   }
@@ -202,6 +201,8 @@ export function buildNodeDiagnostics(
       result.push(
         diagnostic(
           `${node.id}-hot-shard`,
+          'hot-shard',
+          'sharding',
           'bottleneck',
           hottest / average >= 2 ? 'critical' : 'warning',
           'Hot shard',
@@ -211,7 +212,6 @@ export function buildNodeDiagnostics(
             hottest,
             routes.reduce((sum, value) => sum + value, 0),
           ),
-          'sharding',
         ),
       );
     }
@@ -229,27 +229,63 @@ export function buildEdgeDiagnostics(
     result.push(
       diagnostic(
         `${edge.id}-timeouts`,
+        'timeout',
+        'latency',
         'error',
         'critical',
         'Requests timed out',
         `${displayPercent(percent(metric.timeouts, metric.transferredRps))}% exceeded the connection timeout.`,
         metric.timeouts,
         percent(metric.timeouts, metric.transferredRps),
-        'latency',
       ),
     );
   }
-  if (metric.failedRps > 0) {
+  if (metric.unavailableRps > 0) {
     result.push(
       diagnostic(
-        `${edge.id}-downstream-failures`,
+        `${edge.id}-downstream-unavailable`,
+        'downstream-unavailable',
+        'failure',
         'error',
         'critical',
-        'Downstream requests failed',
-        `${displayPercent(percent(metric.failedRps, metric.transferredRps))}% failed at the destination.`,
-        metric.failedRps,
-        percent(metric.failedRps, metric.transferredRps),
+        'Downstream component unavailable',
+        'The destination cannot process requests.',
+        metric.unavailableRps,
+        percent(metric.unavailableRps, metric.transferredRps),
+      ),
+    );
+  }
+  if (metric.rejectedRps > 0) {
+    result.push(
+      diagnostic(
+        `${edge.id}-downstream-rejection`,
+        'downstream-rejection',
+        'capacity',
+        'error',
+        'critical',
+        'Downstream requests rejected',
+        `${displayPercent(percent(metric.rejectedRps, metric.transferredRps))}% were rejected at the destination.`,
+        metric.rejectedRps,
+        percent(metric.rejectedRps, metric.transferredRps),
+      ),
+    );
+  }
+  const downstreamFailurePercent = percent(
+    metric.processingFailureRps,
+    metric.transferredRps,
+  );
+  if (isIncidentRate(metric.processingFailureRps, downstreamFailurePercent)) {
+    result.push(
+      diagnostic(
+        `${edge.id}-downstream-processing-failure`,
+        'downstream-processing-failure',
         'failure',
+        'error',
+        downstreamFailurePercent >= 10 ? 'critical' : 'warning',
+        'Downstream requests failed',
+        `${displayPercent(downstreamFailurePercent)}% failed at the destination.`,
+        metric.processingFailureRps,
+        downstreamFailurePercent,
       ),
     );
   }
@@ -257,13 +293,14 @@ export function buildEdgeDiagnostics(
     result.push(
       diagnostic(
         `${edge.id}-retries`,
+        'retry-amplification',
+        'failure',
         'bottleneck',
         metric.retries >= metric.transferredRps * 0.1 ? 'critical' : 'warning',
         'Retry amplification',
         `${round(metric.retries)} retry requests/second add downstream load.`,
         metric.retries,
         percent(metric.retries, metric.transferredRps),
-        'failure',
       ),
     );
   }

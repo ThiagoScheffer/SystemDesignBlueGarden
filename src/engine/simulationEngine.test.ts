@@ -38,6 +38,120 @@ const input = (
 });
 
 describe('deterministic simulation engine', () => {
+  it('keeps overload with queued work as a bottleneck until requests fail', () => {
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const service = createArchitectureNode('application-server', {
+      x: 100,
+      y: 0,
+    });
+    client.data.config.failureRate = 0;
+    service.data.config.capacity = 100;
+    service.data.config.queueLimit = 1_000;
+    service.data.config.failureRate = 0;
+    const edge = createArchitectureEdge(client.id, service.id);
+
+    const metric = runSimulation(
+      input([client, service], [edge], scenario(client.id, 200)),
+    ).ticks[0].nodes[service.id];
+
+    expect(metric.backlog).toBe(100);
+    expect(metric.rejectedRps).toBe(0);
+    expect(
+      metric.diagnostics.filter((entry) => entry.category === 'error'),
+    ).toEqual([]);
+    expect(metric.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'capacity-saturation',
+        category: 'bottleneck',
+      }),
+    );
+  });
+
+  it('suppresses ordinary failure-rate noise below the incident threshold', () => {
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const service = createArchitectureNode('application-server', {
+      x: 100,
+      y: 0,
+    });
+    client.data.config.failureRate = 0;
+    service.data.config.capacity = 10_000;
+    service.data.config.failureRate = 0.001;
+    const edge = createArchitectureEdge(client.id, service.id);
+
+    const result = runSimulation(
+      input([client, service], [edge], scenario(client.id, 1_000)),
+    );
+
+    expect(
+      result.ticks[0].nodes[service.id].processingFailureRps,
+    ).toBeGreaterThan(0);
+    expect(
+      result.ticks[0].nodes[service.id].diagnostics.some(
+        (entry) => entry.code === 'processing-failure',
+      ),
+    ).toBe(false);
+    expect(
+      result.ticks[0].edges[edge.id].diagnostics.some(
+        (entry) => entry.code === 'downstream-processing-failure',
+      ),
+    ).toBe(false);
+  });
+
+  it('requires both one percent and one request per second for processing errors', () => {
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const service = createArchitectureNode('application-server', {
+      x: 100,
+      y: 0,
+    });
+    client.data.config.failureRate = 0;
+    service.data.config.capacity = 10_000;
+    service.data.config.failureRate = 0.02;
+    const edge = createArchitectureEdge(client.id, service.id);
+    edge.config.retryCount = 0;
+
+    const above = runSimulation(
+      input([client, service], [edge], scenario(client.id, 100)),
+    ).ticks[0];
+    expect(above.nodes[service.id].diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'processing-failure' }),
+    );
+    expect(above.edges[edge.id].diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'downstream-processing-failure' }),
+    );
+
+    service.data.config.failureRate = 0.5;
+    const belowVolume = runSimulation(
+      input([client, service], [edge], scenario(client.id, 1)),
+    ).ticks[0];
+    expect(
+      belowVolume.nodes[service.id].diagnostics.some(
+        (entry) => entry.code === 'processing-failure',
+      ),
+    ).toBe(false);
+  });
+
+  it('always diagnoses connection timeouts', () => {
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const service = createArchitectureNode('application-server', {
+      x: 100,
+      y: 0,
+    });
+    client.data.config.failureRate = 0;
+    service.data.config.failureRate = 0;
+    const edge = createArchitectureEdge(client.id, service.id);
+    edge.config.latencyMs = 101;
+    edge.config.timeoutMs = 100;
+
+    const edgeMetric = runSimulation(
+      input([client, service], [edge], scenario(client.id, 0.1)),
+    ).ticks[0].edges[edge.id];
+
+    expect(edgeMetric.timeouts).toBeGreaterThan(0);
+    expect(edgeMetric.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'timeout', category: 'error' }),
+    );
+  });
+
   it('explains uncapped Load Balancer failures with separate percentages', () => {
     const client = createArchitectureNode('client', { x: 0, y: 0 });
     const loadBalancer = createArchitectureNode('load-balancer', {
@@ -66,10 +180,6 @@ describe('deterministic simulation engine', () => {
     expect(metric.processingFailureRps).toBe(120);
     expect(errors).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Overloaded',
-          explanation: '320% capacity, requests queueing',
-        }),
         expect.objectContaining({
           title: 'Connections dropped',
           explanation: '69% rejected at capacity',
@@ -187,7 +297,7 @@ describe('deterministic simulation engine', () => {
       expect.objectContaining({
         title: 'Cache miss amplification',
         affectedPercent: 100,
-        tipId: 'cache',
+        topic: 'cache',
       }),
     );
   });
@@ -217,7 +327,7 @@ describe('deterministic simulation engine', () => {
     expect(result.ticks[0].nodes[firstDb.id].incomingRps).toBe(750);
     expect(result.ticks[0].nodes[secondDb.id].incomingRps).toBe(250);
     expect(result.ticks[0].nodes[sharding.id].diagnostics).toContainEqual(
-      expect.objectContaining({ title: 'Hot shard', tipId: 'sharding' }),
+      expect.objectContaining({ title: 'Hot shard', topic: 'sharding' }),
     );
   });
 
@@ -252,7 +362,7 @@ describe('deterministic simulation engine', () => {
     expect(result.ticks[1].nodes[queue.id].backlog).toBe(900);
     expect(result.ticks[2].nodes[queue.id].backlog).toBe(800);
     expect(result.ticks[1].nodes[queue.id].diagnostics).toContainEqual(
-      expect.objectContaining({ title: 'Consumer lag', tipId: 'queue' }),
+      expect.objectContaining({ title: 'Consumer lag', topic: 'queue' }),
     );
   });
 

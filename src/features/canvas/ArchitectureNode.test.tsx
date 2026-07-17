@@ -43,24 +43,37 @@ const showMetric = (nodeId: string, overrides: Partial<NodeMetric> = {}) => {
     status: 'critical',
     diagnostics: [
       {
-        id: `${nodeId}-overloaded`,
+        id: `${nodeId}-rejected`,
+        code: 'capacity-rejection',
+        topic: 'capacity',
         category: 'error',
         severity: 'critical',
-        title: 'Overloaded',
-        explanation: '320% capacity, requests queueing',
-        affectedRps: 2_200,
-        affectedPercent: 220,
-        tipId: 'capacity',
+        title: 'Connections dropped',
+        explanation: '69% rejected at capacity',
+        affectedRps: 2_199,
+        affectedPercent: 69,
+      },
+      {
+        id: `${nodeId}-processing-failure`,
+        code: 'processing-failure',
+        topic: 'failure',
+        category: 'error',
+        severity: 'critical',
+        title: 'Server errors',
+        explanation: '12% of requests failing',
+        affectedRps: 120,
+        affectedPercent: 12,
       },
       {
         id: `${nodeId}-bottleneck`,
+        code: 'capacity-saturation',
+        topic: 'capacity',
         category: 'bottleneck',
         severity: 'critical',
         title: 'Capacity saturation',
         explanation: '320% of configured capacity is demanded.',
         affectedRps: 3_200,
         affectedPercent: 320,
-        tipId: 'capacity',
       },
     ],
     ...overrides,
@@ -184,14 +197,21 @@ describe('ArchitectureNode education', () => {
     const details = screen.getByLabelText('Load balancer error details');
     expect(details).toHaveTextContent('FAILING REQUESTS');
     expect(details).toHaveTextContent(
-      'Overloaded320% capacity, requests queueing',
+      'Connections dropped69% rejected at capacity',
+    );
+    expect(details).toHaveTextContent('Server errors12% of requests failing');
+    expect(details).toHaveTextContent(
+      'Likely causeCapacity saturation: 320% of configured capacity is demanded.',
     );
     expect(details).toHaveTextContent('Suggested corrections');
     const studyLink = screen.getByRole('link', {
-      name: /Twitter scaling and failure case study/,
+      name: /Azure performance antipatterns/,
     });
     expect(studyLink).toHaveAttribute('target', '_blank');
     expect(studyLink).toHaveAttribute('rel', 'noreferrer noopener');
+    expect(
+      screen.queryByRole('link', { name: /Twitter feed scaling case study/ }),
+    ).not.toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(

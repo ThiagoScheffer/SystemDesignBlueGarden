@@ -368,6 +368,9 @@ export function runSimulation(input: SimulationInput): EngineResult {
               ? round(baseTransferred)
               : 0,
           failedRps: 0,
+          rejectedRps: 0,
+          processingFailureRps: 0,
+          unavailableRps: 0,
           diagnostics: [],
         };
         if (metric.routedRps)
@@ -399,11 +402,30 @@ export function runSimulation(input: SimulationInput): EngineResult {
       const metric = edgeMetrics[edge.id];
       const targetMetric = nodeMetrics[edge.target];
       if (!metric || !targetMetric) continue;
-      const failureRatio =
-        targetMetric.incomingRps > 0
-          ? Math.min(1, targetMetric.failedRps / targetMetric.incomingRps)
-          : 0;
-      metric.failedRps = round(metric.transferredRps * failureRatio);
+      if (targetMetric.status === 'failed') {
+        metric.unavailableRps = metric.transferredRps;
+      } else if (targetMetric.incomingRps > 0) {
+        metric.rejectedRps = round(
+          metric.transferredRps *
+            Math.min(1, targetMetric.rejectedRps / targetMetric.incomingRps),
+        );
+        metric.processingFailureRps = round(
+          metric.transferredRps *
+            Math.min(
+              1,
+              targetMetric.processingFailureRps / targetMetric.incomingRps,
+            ),
+        );
+      }
+      metric.failedRps = round(
+        Math.min(
+          metric.transferredRps,
+          metric.unavailableRps +
+            metric.rejectedRps +
+            metric.processingFailureRps +
+            metric.timeouts,
+        ),
+      );
       metric.diagnostics = buildEdgeDiagnostics(edge, metric);
     }
 

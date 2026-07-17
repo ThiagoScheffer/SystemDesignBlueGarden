@@ -651,6 +651,30 @@ select:focus-visible {
   border-radius: 7px;
   background: #08120f;
 }
+.diagnostic-likely-cause {
+  margin: 0 12px 10px;
+  padding: 8px 10px;
+  border: 1px solid #775f2f;
+  border-radius: 6px;
+  background: #211d0d;
+}
+.diagnostic-likely-cause span {
+  color: #f5cf64;
+  font:
+    500 8px 'DM Mono',
+    monospace;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.diagnostic-likely-cause p {
+  margin: 5px 0 0;
+  color: #cbb978;
+  font-size: 9px;
+  line-height: 1.45;
+}
+.diagnostic-likely-cause strong {
+  color: #ead17b;
+}
 .diagnostic-learning > span {
   color: var(--accent);
 }
@@ -663,6 +687,10 @@ select:focus-visible {
   margin-top: 5px;
   color: #74dcb4;
   font-size: 8px;
+}
+.diagnostic-resources {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
 }
 .node-tooltip,
 .node-info-card {

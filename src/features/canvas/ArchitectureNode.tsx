@@ -3,7 +3,10 @@ import { AlertTriangle, Gauge, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ArchitectureNodeV1 } from '../../domain/architecture/types';
 import { componentDefinitionMap } from '../../domain/components/definitions';
-import { learningTips } from '../../domain/simulation/learningTips';
+import {
+  getLearningTips,
+  rankLearningResources,
+} from '../../domain/simulation/learningTips';
 import { iconMap } from '../component-library/iconMap';
 import { useEditorStore } from './editorStore';
 import {
@@ -21,6 +24,7 @@ export function ArchitectureNode({
   selected,
 }: NodeProps<ArchitectureFlowNode>) {
   const node = data.architecture;
+  const document = useEditorStore((state) => state.document);
   const definition = componentDefinitionMap[node.type];
   const Icon = iconMap[definition.icon];
   const isNote = node.type === 'note';
@@ -64,6 +68,20 @@ export function ArchitectureNode({
       : bottleneckDiagnostics;
   const criticalBottleneck = bottleneckDiagnostics.some(
     (entry) => entry.severity === 'critical',
+  );
+  const likelyCauses =
+    activeDiagnostic?.category === 'error'
+      ? bottleneckDiagnostics.filter(
+          (entry) =>
+            entry.code === 'capacity-saturation' ||
+            entry.code === 'queue-growth',
+        )
+      : [];
+  const contextualTips = getLearningTips(displayedDiagnostics);
+  const learningResourcesForNode = rankLearningResources(
+    document,
+    node,
+    displayedDiagnostics,
   );
 
   const clearHover = () => {
@@ -244,35 +262,41 @@ export function ArchitectureNode({
               </article>
             ))}
           </div>
+          {likelyCauses.length > 0 && (
+            <div className="diagnostic-likely-cause">
+              <span>Likely cause</span>
+              {likelyCauses.map((entry) => (
+                <p key={entry.id}>
+                  <strong>{entry.title}:</strong> {entry.explanation}
+                </p>
+              ))}
+            </div>
+          )}
           {learningTipsEnabled && (
             <div className="diagnostic-learning">
               <span>Suggested corrections</span>
-              {Array.from(
-                new Set(displayedDiagnostics.map((entry) => entry.tipId)),
-              )
-                .filter((tipId): tipId is string => Boolean(tipId))
-                .map((tipId) => learningTips[tipId])
-                .filter(Boolean)
-                .map((tip) => (
-                  <div key={tip.id}>
-                    <p>{tip.summary}</p>
-                    <ul>
-                      {tip.actions.map((action) => (
-                        <li key={action}>{action}</li>
-                      ))}
-                    </ul>
-                    {tip.links.map((link) => (
-                      <a
-                        key={link.url}
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                      >
-                        Study: {link.label}
-                      </a>
+              {contextualTips.map((tip) => (
+                <div key={tip.topic}>
+                  <p>{tip.summary}</p>
+                  <ul>
+                    {tip.actions.map((action) => (
+                      <li key={action}>{action}</li>
                     ))}
-                  </div>
+                  </ul>
+                </div>
+              ))}
+              <div className="diagnostic-resources">
+                {learningResourcesForNode.map((resource) => (
+                  <a
+                    key={resource.id}
+                    href={resource.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    Study: {resource.label}
+                  </a>
                 ))}
+              </div>
             </div>
           )}
         </section>

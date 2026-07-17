@@ -68,6 +68,8 @@ export function ArchitectureCanvas() {
         id: node.id,
         type: 'architecture',
         position: node.position,
+        initialWidth: node.type === 'region' ? 190 : 158,
+        initialHeight: 58,
         data: { architecture: node },
         selected: selection?.kind === 'node' && selection.id === node.id,
       })),
@@ -189,21 +191,23 @@ export function ArchitectureCanvas() {
         maxZoom={2}
         deleteKeyCode={null}
         defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
+        colorMode="dark"
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-        <MiniMap
+        <MiniMap<ArchitectureFlowNode>
           pannable
           zoomable
-          nodeColor={(node) => {
-            const architecture = (
-              node.data as {
-                architecture?: ArchitectureFlowNode['data']['architecture'];
-              }
-            ).architecture;
-            return architecture
-              ? componentDefinitionMap[architecture.type].color
-              : '#64748b';
-          }}
+          ariaLabel="Architecture overview map"
+          bgColor="#0c1714"
+          maskColor="rgba(7, 16, 14, 0.22)"
+          maskStrokeColor="#466057"
+          maskStrokeWidth={1.5}
+          nodeColor={(node) =>
+            componentDefinitionMap[node.data.architecture.type].color
+          }
+          nodeStrokeColor="#d9e3df"
+          nodeStrokeWidth={1.5}
+          nodeBorderRadius={3}
         />
         <Controls showInteractive={false} />
       </ReactFlow>

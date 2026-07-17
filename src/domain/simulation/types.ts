@@ -80,16 +80,33 @@ export type MetricStatus = 'normal' | 'warning' | 'critical' | 'failed';
 
 export type DiagnosticCategory = 'error' | 'bottleneck';
 export type DiagnosticSeverity = 'warning' | 'critical';
+export type DiagnosticTopic =
+  'capacity' | 'latency' | 'cache' | 'queue' | 'sharding' | 'failure';
+export type DiagnosticCode =
+  | 'component-unavailable'
+  | 'capacity-rejection'
+  | 'processing-failure'
+  | 'timeout'
+  | 'downstream-unavailable'
+  | 'downstream-rejection'
+  | 'downstream-processing-failure'
+  | 'capacity-saturation'
+  | 'queue-growth'
+  | 'high-tail-latency'
+  | 'cache-miss-amplification'
+  | 'hot-shard'
+  | 'retry-amplification';
 
 export interface SimulationDiagnostic {
   id: string;
+  code: DiagnosticCode;
+  topic: DiagnosticTopic;
   category: DiagnosticCategory;
   severity: DiagnosticSeverity;
   title: string;
   explanation: string;
   affectedRps: number;
   affectedPercent: number;
-  tipId?: string;
 }
 
 export interface NodeMetric {
@@ -121,6 +138,9 @@ export interface EdgeMetric {
   retries: number;
   timeouts: number;
   failedRps: number;
+  rejectedRps: number;
+  processingFailureRps: number;
+  unavailableRps: number;
   diagnostics: SimulationDiagnostic[];
 }
 

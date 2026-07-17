@@ -86,6 +86,20 @@ test('imports an architecture and completes a browser simulation', async ({
   await expect(page.getByLabel('Architecture name')).toHaveValue(
     'E2E Architecture (imported)',
   );
+  const miniMap = page.getByRole('img', { name: 'Architecture overview map' });
+  await expect(miniMap).toBeVisible();
+  const miniMapNodes = miniMap.locator('.react-flow__minimap-node');
+  await expect(miniMapNodes).toHaveCount(2);
+  const miniMapFills = await miniMapNodes.evaluateAll((nodes) =>
+    nodes.map((node) => (node as SVGElement).style.fill.toLowerCase()),
+  );
+  expect(miniMapFills).toHaveLength(2);
+  expect(new Set(miniMapFills).size).toBe(2);
+  expect(miniMapFills).not.toContain('#000000');
+  const maskFill = await miniMap
+    .locator('.react-flow__minimap-mask')
+    .evaluate((mask) => getComputedStyle(mask).fill);
+  expect(maskFill).toContain('0.22');
 
   await page.getByTitle('Run simulation').click();
   await expect(
@@ -135,13 +149,21 @@ test('opens live failure details for an overloaded component', async ({
   const diagnostic = page.getByLabel('Load balancer error details');
   await expect(diagnostic.getByText('FAILING REQUESTS')).toBeVisible();
   await expect(diagnostic).toContainText(
-    'Overloaded320% capacity, requests queueing',
-  );
-  await expect(diagnostic).toContainText(
     'Connections dropped69% rejected at capacity',
   );
   await expect(diagnostic).toContainText(
     'Server errors12% of requests failing',
   );
+  await expect(diagnostic).toContainText(
+    'Likely causeCapacity saturation: 320% of configured capacity is demanded.',
+  );
   await expect(diagnostic.getByText('Suggested corrections')).toBeVisible();
+  await expect(
+    diagnostic.getByRole('link', {
+      name: /Azure performance antipatterns/,
+    }),
+  ).toBeVisible();
+  await expect(
+    diagnostic.getByRole('link', { name: /Twitter feed scaling case study/ }),
+  ).toHaveCount(0);
 });
