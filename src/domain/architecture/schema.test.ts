@@ -41,8 +41,25 @@ describe('architecture document schema', () => {
 
     const migrated = parseArchitectureDocument(legacy);
 
-    expect(migrated.schemaVersion).toBe('1.1');
+    expect(migrated.schemaVersion).toBe('1.2');
+    expect(migrated.scenarios).toEqual([]);
     expect(migrated.nodes[0].data.config.hitRatePercent).toBe(80);
+  });
+
+  it('migrates a 1.1 document to 1.2 without changing its architecture ID', () => {
+    const current = createArchitectureDocument('Version 1.1');
+    const document = structuredClone(current) as unknown as Record<
+      string,
+      unknown
+    >;
+    delete document.scenarios;
+    const legacy = { ...document, schemaVersion: '1.1' };
+
+    const migrated = parseArchitectureDocument(legacy);
+
+    expect(migrated.schemaVersion).toBe('1.2');
+    expect(migrated.id).toBe(current.id);
+    expect(migrated.scenarios).toEqual([]);
   });
 
   it('accepts a configured Sharding router', () => {

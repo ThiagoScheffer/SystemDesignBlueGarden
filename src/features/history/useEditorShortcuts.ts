@@ -1,5 +1,9 @@
 import { useEffect } from 'react';
 import { useEditorStore } from '../canvas/editorStore';
+import {
+  isSimulationLocked,
+  useSimulationStore,
+} from '../simulation/simulationStore';
 
 const isFormControl = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -9,6 +13,7 @@ export function useEditorShortcuts() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const state = useEditorStore.getState();
+      const locked = isSimulationLocked(useSimulationStore.getState().status);
       const modifier = event.ctrlKey || event.metaKey;
 
       if (event.key === 'Escape' && state.expandedInfoNodeId) {
@@ -19,6 +24,7 @@ export function useEditorShortcuts() {
       }
 
       if (modifier && event.key.toLowerCase() === 'z') {
+        if (locked) return;
         event.preventDefault();
         if (event.shiftKey) {
           state.commitTransaction();
@@ -29,6 +35,7 @@ export function useEditorShortcuts() {
         return;
       }
       if (modifier && event.key.toLowerCase() === 'y') {
+        if (locked) return;
         event.preventDefault();
         state.commitTransaction();
         state.redo();
@@ -47,6 +54,7 @@ export function useEditorShortcuts() {
         !isFormControl(event.target) &&
         (event.key === 'Delete' || event.key === 'Backspace')
       ) {
+        if (locked) return;
         event.preventDefault();
         state.deleteSelection();
       }

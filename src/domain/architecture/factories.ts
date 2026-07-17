@@ -13,12 +13,13 @@ export function createArchitectureDocument(
 ): ArchitectureDocumentV1 {
   const now = new Date().toISOString();
   return {
-    schemaVersion: '1.1',
+    schemaVersion: '1.2',
     id: makeId('architecture'),
     metadata: { name, createdAt: now, updatedAt: now },
     viewport: { x: 0, y: 0, zoom: 1 },
     nodes: [],
     edges: [],
+    scenarios: [],
   };
 }
 

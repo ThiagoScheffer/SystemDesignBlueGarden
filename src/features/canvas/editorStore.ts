@@ -10,6 +10,7 @@ import type {
   EdgeConfig,
   OperationalConfig,
 } from '../../domain/architecture/types';
+import type { SimulationScenario } from '../../domain/simulation/types';
 
 export type EditorSelection =
   { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null;
@@ -64,6 +65,8 @@ interface EditorState {
   hydrateDocument: (document: ArchitectureDocumentV1) => void;
   replaceDocument: (document: ArchitectureDocumentV1) => void;
   renameDocument: (name: string) => void;
+  upsertScenario: (scenario: SimulationScenario) => void;
+  removeScenario: (id: string) => void;
 }
 
 const cloneDocument = (document: ArchitectureDocumentV1) =>
@@ -380,4 +383,29 @@ export const useEditorStore = create<EditorState>((set) => ({
         metadata: { ...state.document.metadata, name },
       }),
     })),
+
+  upsertScenario: (scenario) =>
+    set((state) => {
+      const exists = state.document.scenarios.some(
+        (candidate) => candidate.id === scenario.id,
+      );
+      const scenarios = exists
+        ? state.document.scenarios.map((candidate) =>
+            candidate.id === scenario.id
+              ? structuredClone(scenario)
+              : candidate,
+          )
+        : [...state.document.scenarios, structuredClone(scenario)];
+      return withHistory(state, { ...state.document, scenarios });
+    }),
+
+  removeScenario: (id) =>
+    set((state) =>
+      withHistory(state, {
+        ...state.document,
+        scenarios: state.document.scenarios.filter(
+          (scenario) => scenario.id !== id,
+        ),
+      }),
+    ),
 }));

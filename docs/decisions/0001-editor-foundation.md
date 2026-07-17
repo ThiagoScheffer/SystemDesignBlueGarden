@@ -17,7 +17,7 @@ The architecture editor must be useful before simulation exists, while its saved
 - Limit Region containment to one level when containment is implemented.
 - Store note content as Markdown-compatible text without rendering untrusted HTML.
 - Keep educational component content in the static registry and persist only user-authored implementation notes.
-- Validate and migrate schema `1.0` documents to `1.1` before hydration.
+- Validate and migrate older documents to the current schema before hydration.
 
 ## Consequences
 

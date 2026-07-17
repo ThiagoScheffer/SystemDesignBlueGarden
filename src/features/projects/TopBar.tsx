@@ -6,8 +6,19 @@ import {
   readArchitectureFile,
 } from '../import-export/files';
 import type { SaveStatus } from './useProjectPersistence';
+import type { ReactNode } from 'react';
+import {
+  isSimulationLocked,
+  useSimulationStore,
+} from '../simulation/simulationStore';
 
-export function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
+export function TopBar({
+  saveStatus,
+  simulationControls,
+}: {
+  saveStatus: SaveStatus;
+  simulationControls?: ReactNode;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState('');
   const document = useEditorStore((state) => state.document);
@@ -18,6 +29,8 @@ export function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
   const newDocument = useEditorStore((state) => state.newDocument);
   const replaceDocument = useEditorStore((state) => state.replaceDocument);
   const renameDocument = useEditorStore((state) => state.renameDocument);
+  const simulationStatus = useSimulationStore((state) => state.status);
+  const locked = isSimulationLocked(simulationStatus);
 
   const importFile = async (file?: File) => {
     if (!file) return;
@@ -48,6 +61,7 @@ export function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
         <input
           aria-label="Architecture name"
           value={document.metadata.name}
+          disabled={locked}
           onChange={(event) =>
             renameDocument(event.target.value || 'Untitled architecture')
           }
@@ -60,7 +74,12 @@ export function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
         </span>
       </div>
       <nav className="toolbar" aria-label="Architecture actions">
-        <button type="button" onClick={newDocument} title="New architecture">
+        <button
+          type="button"
+          onClick={newDocument}
+          title="New architecture"
+          disabled={locked}
+        >
           <FilePlus2 aria-hidden="true" size={17} />
           <span>New</span>
         </button>
@@ -68,7 +87,7 @@ export function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
         <button
           type="button"
           onClick={undo}
-          disabled={past.length === 0}
+          disabled={locked || past.length === 0}
           title="Undo"
         >
           <Undo2 aria-hidden="true" size={17} />
@@ -76,7 +95,7 @@ export function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
         <button
           type="button"
           onClick={redo}
-          disabled={future.length === 0}
+          disabled={locked || future.length === 0}
           title="Redo"
         >
           <Redo2 aria-hidden="true" size={17} />
@@ -86,6 +105,7 @@ export function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
           type="button"
           onClick={() => inputRef.current?.click()}
           title="Import JSON"
+          disabled={locked}
         >
           <Upload aria-hidden="true" size={17} />
           <span>Import</span>
@@ -105,6 +125,8 @@ export function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
           accept="application/json,.json"
           onChange={(event) => void importFile(event.target.files?.[0])}
         />
+        <span className="toolbar-divider" />
+        {simulationControls}
       </nav>
       {importError && (
         <div className="import-error" role="alert" title={importError}>

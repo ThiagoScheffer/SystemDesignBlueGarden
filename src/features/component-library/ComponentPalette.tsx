@@ -4,6 +4,10 @@ import type { ComponentType } from '../../domain/architecture/types';
 import { componentDefinitions } from '../../domain/components/definitions';
 import { useEditorStore } from '../canvas/editorStore';
 import { iconMap } from './iconMap';
+import {
+  isSimulationLocked,
+  useSimulationStore,
+} from '../simulation/simulationStore';
 
 const categories = [
   'Client & edge',
@@ -17,6 +21,8 @@ const categories = [
 export function ComponentPalette() {
   const [query, setQuery] = useState('');
   const addNode = useEditorStore((state) => state.addNode);
+  const status = useSimulationStore((state) => state.status);
+  const locked = isSimulationLocked(status);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return componentDefinitions;
@@ -71,6 +77,7 @@ export function ComponentPalette() {
                       className="component-item"
                       key={definition.type}
                       draggable
+                      disabled={locked}
                       onDragStart={(event) => startDrag(event, definition.type)}
                       onClick={() => addNode(definition.type)}
                       title={definition.description}

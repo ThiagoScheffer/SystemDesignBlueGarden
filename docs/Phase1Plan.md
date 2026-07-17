@@ -145,7 +145,7 @@ Define the canonical document before building editor features:
 
 ```ts
 interface ArchitectureDocumentV1 {
-  schemaVersion: '1.1';
+  schemaVersion: '1.2';
   id: string;
   metadata: {
     name: string;
@@ -292,7 +292,7 @@ Exit criteria: common editing mistakes are recoverable and history behaves predi
 - Add debounced autosave, visible save status, and recovery behavior.
 - Add new/open/rename/delete local project flows with confirmation where needed.
 - Implement deterministic JSON serialization, download, import validation, and error reporting.
-- Migrate schema `1.0` documents to the current `1.1` format during import and local loading.
+- Migrate schema `1.0` and `1.1` documents to the current `1.2` format during import and local loading.
 
 Exit criteria: work survives a reload and completes a local save → export → import round trip without data loss.
 

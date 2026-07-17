@@ -5,6 +5,10 @@ import type { ArchitectureNodeV1 } from '../../domain/architecture/types';
 import { componentDefinitionMap } from '../../domain/components/definitions';
 import { iconMap } from '../component-library/iconMap';
 import { useEditorStore } from './editorStore';
+import {
+  isSimulationLocked,
+  useSimulationStore,
+} from '../simulation/simulationStore';
 
 export type ArchitectureFlowNode = Node<
   { architecture: ArchitectureNodeV1 },
@@ -32,6 +36,11 @@ export function ArchitectureNode({
   const [showTooltip, setShowTooltip] = useState(false);
   const hoverTimer = useRef<number | null>(null);
   const infoOpen = expandedInfoNodeId === node.id;
+  const metric = useSimulationStore(
+    (state) => state.ticks.at(-1)?.nodes[node.id],
+  );
+  const simulationStatus = useSimulationStore((state) => state.status);
+  const simulationLocked = isSimulationLocked(simulationStatus);
 
   const clearHover = () => {
     if (hoverTimer.current !== null) {
@@ -101,6 +110,16 @@ export function ArchitectureNode({
       {!isNote && !isRegion && (
         <Handle type="source" position={Position.Right} />
       )}
+      {metric && (
+        <div className={`node-metric-badge metric-${metric.status}`}>
+          {metric.status === 'failed'
+            ? 'Failed'
+            : `${Math.round(metric.utilization * 100)}%`}
+          {node.type === 'message-queue' && metric.backlog > 0 && (
+            <span>{Math.round(metric.backlog).toLocaleString()} queued</span>
+          )}
+        </div>
+      )}
 
       {showTooltip && !infoOpen && (
         <div className="node-tooltip" role="tooltip">
@@ -149,6 +168,7 @@ export function ArchitectureNode({
                 max="100"
                 step="1"
                 value={node.data.config.hitRatePercent ?? 80}
+                disabled={simulationLocked}
                 onFocus={beginTransaction}
                 onPointerDown={beginTransaction}
                 onChange={(event) =>
@@ -168,6 +188,7 @@ export function ArchitectureNode({
               rows={4}
               placeholder="Add decisions, constraints, or implementation details…"
               value={node.data.implementationNotes ?? ''}
+              disabled={simulationLocked}
               onFocus={beginTransaction}
               onChange={(event) =>
                 updateNodeTransient(node.id, {

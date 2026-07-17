@@ -21,6 +21,10 @@ import {
   type ArchitectureFlowNode,
 } from './ArchitectureNode';
 import { useEditorStore } from './editorStore';
+import {
+  isSimulationLocked,
+  useSimulationStore,
+} from '../simulation/simulationStore';
 
 const nodeTypes: NodeTypes = { architecture: ArchitectureNode };
 
@@ -40,6 +44,9 @@ export function ArchitectureCanvas() {
     ArchitectureFlowNode,
     Edge
   > | null>(null);
+  const simulationStatus = useSimulationStore((state) => state.status);
+  const latestTick = useSimulationStore((state) => state.ticks.at(-1));
+  const locked = isSimulationLocked(simulationStatus);
 
   const nodes = useMemo<ArchitectureFlowNode[]>(
     () =>
@@ -62,9 +69,17 @@ export function ArchitectureCanvas() {
         label: edge.label || edge.config.protocol,
         selected: selection?.kind === 'edge' && selection.id === edge.id,
         markerEnd: { type: MarkerType.ArrowClosed },
-        style: { strokeWidth: 1.6 },
+        animated: (latestTick?.edges[edge.id]?.transferredRps ?? 0) > 0,
+        style: {
+          strokeWidth:
+            (latestTick?.edges[edge.id]?.transferredRps ?? 0) > 0 ? 2.3 : 1.6,
+          stroke:
+            (latestTick?.edges[edge.id]?.failedRps ?? 0) > 0
+              ? '#ff8e82'
+              : undefined,
+        },
       })),
-    [document.edges, selection],
+    [document.edges, latestTick, selection],
   );
 
   const handleNodeChanges = (changes: NodeChange<ArchitectureFlowNode>[]) => {
@@ -79,6 +94,7 @@ export function ArchitectureCanvas() {
   };
 
   const connect = (connection: Connection) => {
+    if (locked) return;
     if (connection.source && connection.target) {
       addEdge(connection.source, connection.target);
     }
@@ -96,7 +112,7 @@ export function ArchitectureCanvas() {
     const type = event.dataTransfer.getData(
       'application/blue-garden-component',
     ) as ComponentType;
-    if (!type || !componentDefinitionMap[type] || !instance) return;
+    if (locked || !type || !componentDefinitionMap[type] || !instance) return;
     addNode(
       type,
       instance.screenToFlowPosition({ x: event.clientX, y: event.clientY }),
@@ -126,6 +142,8 @@ export function ArchitectureCanvas() {
         onConnect={connect}
         onNodeDragStart={checkpoint}
         onNodeDragStop={commitTransaction}
+        nodesDraggable={!locked}
+        nodesConnectable={!locked}
         fitView
         snapToGrid
         snapGrid={[16, 16]}

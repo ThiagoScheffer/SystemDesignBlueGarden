@@ -88,7 +88,7 @@ export interface ArchitectureEdgeV1 {
 }
 
 export interface ArchitectureDocumentV1 {
-  schemaVersion: '1.1';
+  schemaVersion: '1.2';
   id: string;
   metadata: {
     name: string;
@@ -99,4 +99,6 @@ export interface ArchitectureDocumentV1 {
   viewport?: { x: number; y: number; zoom: number };
   nodes: ArchitectureNodeV1[];
   edges: ArchitectureEdgeV1[];
+  scenarios: SimulationScenario[];
 }
+import type { SimulationScenario } from '../simulation/types';

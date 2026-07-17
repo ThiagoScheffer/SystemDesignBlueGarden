@@ -7,6 +7,10 @@ import type {
 } from '../../domain/architecture/types';
 import { componentDefinitionMap } from '../../domain/components/definitions';
 import { useEditorStore } from '../canvas/editorStore';
+import {
+  isSimulationLocked,
+  useSimulationStore,
+} from '../simulation/simulationStore';
 
 const advancedFields: Array<{
   key: keyof OperationalConfig;
@@ -75,6 +79,8 @@ export function Inspector() {
   const beginTransaction = useEditorStore((state) => state.beginTransaction);
   const commitTransaction = useEditorStore((state) => state.commitTransaction);
   const deleteSelection = useEditorStore((state) => state.deleteSelection);
+  const simulationStatus = useSimulationStore((state) => state.status);
+  const locked = isSimulationLocked(simulationStatus);
 
   const node =
     selection?.kind === 'node'
@@ -86,7 +92,10 @@ export function Inspector() {
       : undefined;
 
   return (
-    <aside className="inspector panel" aria-label="Configuration inspector">
+    <aside
+      className={`inspector panel ${locked ? 'is-locked' : ''}`}
+      aria-label="Configuration inspector"
+    >
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Inspect</span>
@@ -94,6 +103,11 @@ export function Inspector() {
         </div>
         <Settings2 aria-hidden="true" size={18} />
       </div>
+      {locked && (
+        <div className="inspector-lock">
+          Editing is locked during simulation.
+        </div>
+      )}
 
       {!node && !edge && (
         <div className="inspector-empty">

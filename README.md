@@ -1,6 +1,6 @@
 # Blue Garden
 
-Blue Garden is an interactive system-design laboratory. Phase 1 focuses on a structured architecture editor that can later drive deterministic simulation and explainable evaluation.
+Blue Garden is an interactive system-design laboratory with a structured architecture editor and deterministic browser-based simulator.
 
 ## Current implementation
 
@@ -18,6 +18,12 @@ The first editor foundation includes:
 - IndexedDB autosave using Dexie.
 - Validated JSON import and JSON export.
 - Keyboard shortcuts for undo, redo, and deletion.
+- Aggregate one-second simulation in a cancellable Web Worker.
+- Baseline traffic plus six configurable incident presets.
+- Capacity, backlog, Cache, Sharding, Queue, retry, failure, latency, throughput, and cost modeling.
+- Run, pause, resume, reset, and `1×`, `4×`, `16×`, or `MAX` speed controls.
+- Live canvas utilization overlays, KPI timelines, event navigation, and explainable bottleneck findings.
+- Scenario JSON persistence and retention of the ten newest completed runs per architecture.
 
 Region containment, full clipboard/multi-select behavior, named-project management, and browser end-to-end tests remain in the Phase 1 backlog.
 
@@ -37,6 +43,7 @@ Vite prints the local development URL in the terminal.
 ```bash
 npm run lint
 npm test
+npm run test:e2e
 npm run build
 npm run format:check
 ```
@@ -53,9 +60,13 @@ npm run format:check
 
 ## Architecture format
 
-The canonical document is independent of React Flow. Its current schema version is `1.1`, defined in `src/domain/architecture/schema.ts`, and its TypeScript contract is in `src/domain/architecture/types.ts`.
+The canonical document is independent of React Flow. Its current schema version is `1.2`, defined in `src/domain/architecture/schema.ts`, and its TypeScript contract is in `src/domain/architecture/types.ts`.
 
-Schema `1.0` files and IndexedDB projects are validated and migrated to `1.1` when loaded. Unknown versions are rejected before the active design is replaced. A valid import is intentionally created as a new local architecture with a new ID and an `(imported)` name suffix.
+Schema `1.0` and `1.1` files and IndexedDB projects are validated and migrated to `1.2` when loaded. Schema 1.2 adds saved simulation scenarios; completed run results remain in IndexedDB rather than architecture JSON. Unknown versions are rejected before the active design is replaced.
+
+## Simulator
+
+Configure a scenario from the top bar, then run it against an immutable architecture snapshot. Editing is locked while a run is active or paused. Results are educational estimates derived from configured assumptions and should not be treated as production guarantees.
 
 ## Component education
 
@@ -65,3 +76,4 @@ Hover over any canvas component for one second to see its description and a smal
 
 - [Main product design](docs/MaindesignPlan.md)
 - [Phase 1 implementation plan](docs/Phase1Plan.md)
+- [Phase 2 simulator plan](docs/Phase2Plan.md)
