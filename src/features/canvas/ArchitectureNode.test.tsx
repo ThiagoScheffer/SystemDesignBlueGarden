@@ -2,11 +2,13 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import type { NodeProps } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createArchitectureNode } from '../../domain/architecture/factories';
+import type { NodeMetric, SimulationTick } from '../../domain/simulation/types';
 import {
   ArchitectureNode,
   type ArchitectureFlowNode,
 } from './ArchitectureNode';
 import { useEditorStore } from './editorStore';
+import { useSimulationStore } from '../simulation/simulationStore';
 
 vi.mock('@xyflow/react', () => ({
   Handle: () => <span data-testid="handle" />,
@@ -23,10 +25,72 @@ const renderNode = (node: ArchitectureFlowNode['data']['architecture']) =>
     />,
   );
 
+const showMetric = (nodeId: string, overrides: Partial<NodeMetric> = {}) => {
+  const nodeMetric: NodeMetric = {
+    incomingRps: 3_200,
+    offeredRps: 3_200,
+    processedRps: 1_000,
+    utilization: 1,
+    loadRatio: 3.2,
+    backlog: 1,
+    overflow: 2_199,
+    rejectedRps: 2_199,
+    processingFailureRps: 120,
+    averageLatencyMs: 420,
+    p95LatencyMs: 840,
+    failedRps: 2_319,
+    effectiveCapacity: 1_000,
+    status: 'critical',
+    diagnostics: [
+      {
+        id: `${nodeId}-overloaded`,
+        category: 'error',
+        severity: 'critical',
+        title: 'Overloaded',
+        explanation: '320% capacity, requests queueing',
+        affectedRps: 2_200,
+        affectedPercent: 220,
+        tipId: 'capacity',
+      },
+      {
+        id: `${nodeId}-bottleneck`,
+        category: 'bottleneck',
+        severity: 'critical',
+        title: 'Capacity saturation',
+        explanation: '320% of configured capacity is demanded.',
+        affectedRps: 3_200,
+        affectedPercent: 320,
+        tipId: 'capacity',
+      },
+    ],
+    ...overrides,
+  };
+  const simulationTick: SimulationTick = {
+    second: 1,
+    global: {
+      generatedRps: 3_200,
+      successfulRps: 881,
+      failedRps: 2_319,
+      errorRate: 0.7247,
+      averageLatencyMs: 420,
+      p95LatencyMs: 840,
+      queueDepth: 1,
+      estimatedMonthlyCost: 10,
+    },
+    nodes: { [nodeId]: nodeMetric },
+    edges: {},
+    events: [],
+  };
+  useSimulationStore.getState().started('node-test');
+  useSimulationStore.getState().addTick('node-test', simulationTick);
+};
+
 describe('ArchitectureNode education', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     useEditorStore.getState().newDocument();
+    useSimulationStore.getState().reset();
+    useSimulationStore.getState().setLearningTipsEnabled(true);
   });
 
   afterEach(() => {
@@ -95,5 +159,59 @@ describe('ArchitectureNode education', () => {
     const saved = useEditorStore.getState().document.nodes[0];
     expect(saved.data.config.hitRatePercent).toBe(91);
     expect(saved.data.implementationNotes).toBe('Use a cache-aside strategy.');
+  });
+
+  it('shows uncapped load, P95 latency, separate signals, and learning guidance', () => {
+    const loadBalancer = createArchitectureNode('load-balancer', {
+      x: 0,
+      y: 0,
+    });
+    showMetric(loadBalancer.id);
+    renderNode(loadBalancer);
+
+    expect(screen.getByText('320%')).toBeInTheDocument();
+    expect(screen.getByText('· P95 840 ms')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Show Load balancer failing requests'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Show Load balancer bottleneck details'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByLabelText('Show Load balancer failing requests'),
+    );
+    const details = screen.getByLabelText('Load balancer error details');
+    expect(details).toHaveTextContent('FAILING REQUESTS');
+    expect(details).toHaveTextContent(
+      'Overloaded320% capacity, requests queueing',
+    );
+    expect(details).toHaveTextContent('Suggested corrections');
+    const studyLink = screen.getByRole('link', {
+      name: /Twitter scaling and failure case study/,
+    });
+    expect(studyLink).toHaveAttribute('target', '_blank');
+    expect(studyLink).toHaveAttribute('rel', 'noreferrer noopener');
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(
+      screen.queryByLabelText('Load balancer error details'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides educational corrections when learning tips are disabled', () => {
+    const service = createArchitectureNode('application-server', {
+      x: 0,
+      y: 0,
+    });
+    showMetric(service.id);
+    useSimulationStore.getState().setLearningTipsEnabled(false);
+    renderNode(service);
+
+    fireEvent.click(
+      screen.getByLabelText('Show Application server failing requests'),
+    );
+    expect(screen.getByText('FAILING REQUESTS')).toBeInTheDocument();
+    expect(screen.queryByText('Suggested corrections')).not.toBeInTheDocument();
   });
 });

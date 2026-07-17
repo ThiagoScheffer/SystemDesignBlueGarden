@@ -78,17 +78,36 @@ export interface SimulationInput {
 
 export type MetricStatus = 'normal' | 'warning' | 'critical' | 'failed';
 
+export type DiagnosticCategory = 'error' | 'bottleneck';
+export type DiagnosticSeverity = 'warning' | 'critical';
+
+export interface SimulationDiagnostic {
+  id: string;
+  category: DiagnosticCategory;
+  severity: DiagnosticSeverity;
+  title: string;
+  explanation: string;
+  affectedRps: number;
+  affectedPercent: number;
+  tipId?: string;
+}
+
 export interface NodeMetric {
   incomingRps: number;
+  offeredRps: number;
   processedRps: number;
   utilization: number;
+  loadRatio: number | null;
   backlog: number;
   overflow: number;
+  rejectedRps: number;
+  processingFailureRps: number;
   averageLatencyMs: number;
   p95LatencyMs: number;
   failedRps: number;
   effectiveCapacity: number;
   status: MetricStatus;
+  diagnostics: SimulationDiagnostic[];
   cacheHitRps?: number;
   cacheMissRps?: number;
   queueEnqueued?: number;
@@ -102,6 +121,7 @@ export interface EdgeMetric {
   retries: number;
   timeouts: number;
   failedRps: number;
+  diagnostics: SimulationDiagnostic[];
 }
 
 export interface GlobalMetric {

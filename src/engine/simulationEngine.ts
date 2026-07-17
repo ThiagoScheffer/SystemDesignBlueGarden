@@ -3,6 +3,10 @@ import type {
   ArchitectureNodeV1,
 } from '../domain/architecture/types';
 import { runPreflight } from '../domain/simulation/preflight';
+import {
+  buildEdgeDiagnostics,
+  buildNodeDiagnostics,
+} from '../domain/simulation/diagnostics';
 import type {
   BottleneckFinding,
   EdgeMetric,
@@ -100,17 +104,21 @@ function buildFindings(ticks: SimulationTick[]): BottleneckFinding[] {
   }
   const findings: BottleneckFinding[] = [];
   for (const [nodeId, metric] of nodePeak) {
-    if (metric.utilization >= 0.9 || metric.overflow > 0) {
+    if (
+      (metric.loadRatio ?? metric.utilization) >= 0.9 ||
+      metric.overflow > 0
+    ) {
       findings.push({
         id: `capacity-${nodeId}`,
         kind: 'capacity',
         severity: metric.overflow > 0 ? 'critical' : 'warning',
         title: 'Capacity saturation',
-        description: `Utilization reached ${round(metric.utilization * 100)}% with ${round(metric.overflow)} requests/second overflowing.`,
+        description: `Demand reached ${round((metric.loadRatio ?? metric.utilization) * 100)}% of capacity with ${round(metric.overflow)} requests/second overflowing.`,
         suggestion:
           'Increase capacity, distribute traffic, or reduce synchronous work.',
         nodeId,
-        impact: metric.utilization * 100 + metric.overflow,
+        impact:
+          (metric.loadRatio ?? metric.utilization) * 100 + metric.overflow,
       });
     }
     if (metric.backlog > 0) {
@@ -271,15 +279,25 @@ export function runSimulation(input: SimulationInput): EngineResult {
             : 'normal';
       const metric: NodeMetric = {
         incomingRps: round(newIncoming + injected),
+        offeredRps: round(available),
         processedRps: round(processed),
         utilization: round(utilization),
+        loadRatio:
+          effectiveCapacity > 0
+            ? round(available / effectiveCapacity)
+            : available > 0
+              ? null
+              : 0,
         backlog: round(newBacklog),
         overflow: round(overflow),
+        rejectedRps: round(overflow),
+        processingFailureRps: round(failedByRate),
         averageLatencyMs: round(node.data.config.baseLatencyMs + queueDelay),
         p95LatencyMs: round(node.data.config.baseLatencyMs + queueDelay * 2),
         failedRps: round(failed),
         effectiveCapacity: round(effectiveCapacity),
         status,
+        diagnostics: [],
       };
       if (node.type === 'message-queue') {
         metric.queueEnqueued = round(newIncoming + injected);
@@ -350,6 +368,7 @@ export function runSimulation(input: SimulationInput): EngineResult {
               ? round(baseTransferred)
               : 0,
           failedRps: 0,
+          diagnostics: [],
         };
         if (metric.routedRps)
           metric.routedRps[edge.target] = round(transferred);
@@ -385,6 +404,18 @@ export function runSimulation(input: SimulationInput): EngineResult {
           ? Math.min(1, targetMetric.failedRps / targetMetric.incomingRps)
           : 0;
       metric.failedRps = round(metric.transferredRps * failureRatio);
+      metric.diagnostics = buildEdgeDiagnostics(edge, metric);
+    }
+
+    const previousTick = ticks.at(-1);
+    for (const node of input.nodes) {
+      const metric = nodeMetrics[node.id];
+      if (!metric) continue;
+      metric.diagnostics = buildNodeDiagnostics(
+        node,
+        metric,
+        previousTick?.nodes[node.id],
+      );
     }
 
     const memo = new Map<

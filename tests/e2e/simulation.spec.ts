@@ -107,3 +107,41 @@ test('configures a traffic-spike preset', async ({ page }) => {
   await page.getByRole('button', { name: 'Traffic spike' }).click();
   await expect(drawer.getByText('Timeline events')).toBeVisible();
 });
+
+test('opens live failure details for an overloaded component', async ({
+  page,
+}) => {
+  const overloadedArchitecture = structuredClone(architecture);
+  overloadedArchitecture.nodes[1].type = 'load-balancer';
+  overloadedArchitecture.nodes[1].data.label = 'Load balancer';
+  overloadedArchitecture.nodes[1].data.config.capacity = 1_000;
+  overloadedArchitecture.nodes[1].data.config.queueLimit = 1;
+  overloadedArchitecture.nodes[1].data.config.failureRate = 0.12;
+  overloadedArchitecture.edges[0].config.retryCount = 0;
+  overloadedArchitecture.scenarios[0].traffic[0].requestsPerSecond = 3_200;
+
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'overloaded-architecture.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(overloadedArchitecture)),
+  });
+  await page.getByTitle('Run simulation').click();
+  await expect(page.getByText('completed', { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+
+  await page.getByLabel('Show Load balancer failing requests').click();
+  const diagnostic = page.getByLabel('Load balancer error details');
+  await expect(diagnostic.getByText('FAILING REQUESTS')).toBeVisible();
+  await expect(diagnostic).toContainText(
+    'Overloaded320% capacity, requests queueing',
+  );
+  await expect(diagnostic).toContainText(
+    'Connections dropped69% rejected at capacity',
+  );
+  await expect(diagnostic).toContainText(
+    'Server errors12% of requests failing',
+  );
+  await expect(diagnostic.getByText('Suggested corrections')).toBeVisible();
+});

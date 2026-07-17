@@ -39,6 +39,12 @@ export function SimulationPanel({ onReset }: { onReset: () => void }) {
   const ticks = useSimulationStore((state) => state.ticks);
   const summary = useSimulationStore((state) => state.summary);
   const error = useSimulationStore((state) => state.error);
+  const learningTipsEnabled = useSimulationStore(
+    (state) => state.learningTipsEnabled,
+  );
+  const setLearningTipsEnabled = useSimulationStore(
+    (state) => state.setLearningTipsEnabled,
+  );
   const selection = useEditorStore((state) => state.selection);
   const select = useEditorStore((state) => state.select);
   if (status === 'idle' || status === 'preflight') return null;
@@ -64,13 +70,23 @@ export function SimulationPanel({ onReset }: { onReset: () => void }) {
           <span className={`run-status status-${status}`}>{status}</span>
           {latest && <span>Virtual time {latest.second}s</span>}
         </div>
-        <button
-          type="button"
-          onClick={onReset}
-          aria-label="Close simulation results"
-        >
-          <X size={15} />
-        </button>
+        <div className="simulation-header-actions">
+          <label className="learning-tips-toggle">
+            <input
+              type="checkbox"
+              checked={learningTipsEnabled}
+              onChange={(event) => setLearningTipsEnabled(event.target.checked)}
+            />
+            Show learning tips
+          </label>
+          <button
+            type="button"
+            onClick={onReset}
+            aria-label="Close simulation results"
+          >
+            <X size={15} />
+          </button>
+        </div>
       </header>
       {error && (
         <div className="simulation-error">

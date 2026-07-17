@@ -39,4 +39,44 @@ describe('simulation store', () => {
     useSimulationStore.getState().reset();
     expect(useSimulationStore.getState().status).toBe('idle');
   });
+
+  it('keeps one diagnostic open and persists the learning-tip preference', () => {
+    useSimulationStore.getState().toggleDiagnostic('node-a', 'error');
+    expect(useSimulationStore.getState().activeDiagnostic).toEqual({
+      nodeId: 'node-a',
+      category: 'error',
+    });
+    useSimulationStore.getState().toggleDiagnostic('node-b', 'bottleneck');
+    expect(useSimulationStore.getState().activeDiagnostic).toEqual({
+      nodeId: 'node-b',
+      category: 'bottleneck',
+    });
+
+    useSimulationStore.getState().setLearningTipsEnabled(false);
+    expect(useSimulationStore.getState().learningTipsEnabled).toBe(false);
+    expect(localStorage.getItem('blue-garden-learning-tips')).toBe('false');
+    useSimulationStore.getState().reset();
+    expect(useSimulationStore.getState().activeDiagnostic).toBeNull();
+    expect(useSimulationStore.getState().learningTipsEnabled).toBe(false);
+  });
+
+  it('freezes the final tick and diagnostics after completion', () => {
+    useSimulationStore.getState().started('run');
+    useSimulationStore.getState().addTick('run', tick);
+    useSimulationStore.getState().complete('run', {
+      runId: 'run',
+      architectureId: 'architecture',
+      architectureUpdatedAt: '2026-01-01T00:00:00.000Z',
+      scenarioId: 'scenario',
+      scenarioName: 'Scenario',
+      completedAt: '2026-01-01T00:00:01.000Z',
+      durationSeconds: 1,
+      finalMetric: tick.global,
+      peakMetric: tick.global,
+      findings: [],
+    });
+
+    expect(useSimulationStore.getState().status).toBe('completed');
+    expect(useSimulationStore.getState().ticks.at(-1)).toEqual(tick);
+  });
 });
