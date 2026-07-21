@@ -34,7 +34,7 @@ select {
   font: inherit;
 }
 button {
-  color: inherit;
+  color: black;
 }
 button:focus-visible,
 input:focus-visible,
