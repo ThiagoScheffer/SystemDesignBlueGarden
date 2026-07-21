@@ -9,11 +9,15 @@ import { ScenarioDrawer } from '../features/scenarios/ScenarioDrawer';
 import { SimulationControls } from '../features/simulation/SimulationControls';
 import { SimulationPanel } from '../features/simulation/SimulationPanel';
 import { useSimulationController } from '../features/simulation/useSimulationController';
+import { useLearningController } from '../features/learning/useLearningController';
+import { LearningHub } from '../features/learning/LearningHub';
+import { LearningDrawer } from '../features/learning/LearningDrawer';
 
 export function App() {
   const document = useEditorStore((state) => state.document);
   const saveStatus = useProjectPersistence(document);
   const simulation = useSimulationController(document);
+  const learning = useLearningController(document, simulation.start);
   useEditorShortcuts();
 
   return (
@@ -33,6 +37,8 @@ export function App() {
         <SimulationPanel onReset={simulation.reset} />
       </div>
       <ScenarioDrawer document={document} start={simulation.start} />
+      <LearningHub controller={learning} />
+      <LearningDrawer controller={learning} />
       <div className="viewport-warning">
         <strong>Blue Garden needs a wider canvas.</strong>
         <span>Open the editor on a desktop or a larger browser window.</span>

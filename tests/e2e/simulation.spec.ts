@@ -167,3 +167,86 @@ test('opens live failure details for an overloaded component', async ({
     diagnostic.getByRole('link', { name: /Twitter feed scaling case study/ }),
   ).toHaveCount(0);
 });
+
+test('completes a guided learning attempt and opens neutral evidence', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByTitle('Learning Studio').click();
+  const hub = page.getByRole('dialog', { name: 'Learning Studio' });
+  await expect(hub.getByText('Design a URL Shortener')).toBeVisible();
+  await expect(hub.getByText('Design a Rate Limiter')).toBeVisible();
+  await hub.getByRole('button', { name: 'Start guided' }).first().click();
+  const drawer = page.getByRole('complementary', {
+    name: 'Design a URL Shortener learning workspace',
+  });
+  await expect(drawer).toBeVisible();
+  await expect(page.getByLabel('Architecture name')).toHaveValue(
+    'URL Shortener — Starter',
+  );
+  await drawer.getByRole('button', { name: 'Reveal and run incident' }).click();
+  await expect(drawer.getByText('Incident run completed')).toBeVisible({
+    timeout: 25_000,
+  });
+  await drawer.getByRole('button', { name: 'Finish and compare' }).click();
+  await expect(drawer).toBeHidden({ timeout: 15_000 });
+  await page.getByTitle('Learning Studio').click();
+  await page.getByRole('button', { name: 'progress' }).click();
+  await page.getByRole('button', { name: 'Review evidence' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Scenario evidence' }),
+  ).toBeVisible();
+  await expect(page.getByText(/not a score/i)).toBeVisible();
+});
+
+test('resumes an interview attempt with a soft timer after reload', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByTitle('Learning Studio').click();
+  const hub = page.getByRole('dialog', { name: 'Learning Studio' });
+  const firstChallenge = hub.locator('.learning-card').first();
+  await firstChallenge.getByRole('button', { name: 'Interview' }).click();
+  await expect(
+    page.getByRole('complementary', {
+      name: 'Design a URL Shortener learning workspace',
+    }),
+  ).toBeVisible();
+  await page.reload();
+  const hud = page.getByRole('button', {
+    name: 'Open Design a URL Shortener learning workspace',
+  });
+  await expect(hud).toBeVisible();
+  await expect(hud).toContainText(/\d{2}:\d{2}:\d{2}/, { timeout: 5_000 });
+  await hud.click();
+  await expect(page.getByText('interview challenge')).toBeVisible();
+});
+
+test('creates a template as a separate local project', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTitle('Learning Studio').click();
+  const hub = page.getByRole('dialog', { name: 'Learning Studio' });
+  await hub.getByRole('button', { name: 'templates' }).click();
+  await hub.getByRole('button', { name: 'Create project' }).first().click();
+  await expect(page.getByLabel('Architecture name')).toHaveValue(
+    'URL Shortener — Starter',
+  );
+  const projectCount = await page.evaluate(async () => {
+    const request = indexedDB.open('blue-garden');
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const countRequest = database
+      .transaction('projects', 'readonly')
+      .objectStore('projects')
+      .count();
+    const count = await new Promise<number>((resolve, reject) => {
+      countRequest.onsuccess = () => resolve(countRequest.result);
+      countRequest.onerror = () => reject(countRequest.error);
+    });
+    database.close();
+    return count;
+  });
+  expect(projectCount).toBeGreaterThanOrEqual(2);
+});

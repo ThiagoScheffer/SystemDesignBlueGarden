@@ -6,6 +6,7 @@ import {
   Settings,
   Undo2,
   Upload,
+  GraduationCap,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useEditorStore } from '../canvas/editorStore';
@@ -20,6 +21,8 @@ import {
   useSimulationStore,
 } from '../simulation/simulationStore';
 import { ProjectSettingsDrawer } from './ProjectSettingsDrawer';
+import { useLearningStore } from '../learning/learningStore';
+import { ChallengeHud } from '../learning/ChallengeHud';
 
 export function TopBar({
   saveStatus,
@@ -41,6 +44,7 @@ export function TopBar({
   const renameDocument = useEditorStore((state) => state.renameDocument);
   const simulationStatus = useSimulationStore((state) => state.status);
   const locked = isSimulationLocked(simulationStatus);
+  const setLearningHubOpen = useLearningStore((state) => state.setHubOpen);
 
   const importFile = async (file?: File) => {
     if (!file) return;
@@ -83,6 +87,7 @@ export function TopBar({
           {saveStatus === 'saved' && 'Saved locally'}
           {saveStatus === 'error' && 'Save unavailable'}
         </span>
+        <ChallengeHud />
       </div>
       <nav className="toolbar" aria-label="Architecture actions">
         <button
@@ -93,6 +98,16 @@ export function TopBar({
         >
           <FilePlus2 aria-hidden="true" size={17} />
           <span>New</span>
+        </button>
+        <span className="toolbar-divider" />
+        <button
+          type="button"
+          onClick={() => setLearningHubOpen(true)}
+          title="Learning Studio"
+          disabled={locked}
+        >
+          <GraduationCap aria-hidden="true" size={17} />
+          <span>Learn</span>
         </button>
         <span className="toolbar-divider" />
         <button

@@ -28,6 +28,9 @@ The first editor foundation includes:
 - Advisory architecture assessment driven by project requirements.
 - Port and connection context menus with disconnect, reverse, duplicate, label, monitoring, disable, and endpoint reconnection operations.
 - Disabled-path simulation exclusion and independently combined ambient failure probability.
+- Local Learning Studio with five editable templates and five guided/interview challenges.
+- Capacity-estimation worksheets, soft interview timers, semantic hidden incidents, and resumable attempt history.
+- Neutral evidence comparison between submitted and curated reference architectures without scoring.
 
 Region containment and full clipboard/multi-select behavior remain in the editor backlog.
 
@@ -81,3 +84,5 @@ Hover over any canvas component for one second to see its description and a smal
 - [Main product design](docs/MaindesignPlan.md)
 - [Phase 1 implementation plan](docs/Phase1Plan.md)
 - [Phase 2 simulator plan](docs/Phase2Plan.md)
+- [Phase 3 learning plan](docs/Phase3Plan.md)
+- [Current application state](docs/Current_App_state.md)

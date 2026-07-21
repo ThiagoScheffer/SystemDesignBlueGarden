@@ -4,8 +4,9 @@ import type {
   SimulationSummary,
   SimulationTick,
 } from '../domain/simulation/types';
+import type { ChallengeAttempt } from '../domain/learning/types';
 
-interface StoredProject {
+export interface StoredProject {
   id: string;
   updatedAt: string;
   document: ArchitectureDocumentV1;
@@ -22,6 +23,7 @@ export interface StoredSimulationRun {
 class BlueGardenDatabase extends Dexie {
   projects!: EntityTable<StoredProject, 'id'>;
   simulationRuns!: EntityTable<StoredSimulationRun, 'runId'>;
+  trainingAttempts!: EntityTable<ChallengeAttempt, 'id'>;
 
   constructor() {
     super('blue-garden');
@@ -32,6 +34,13 @@ class BlueGardenDatabase extends Dexie {
       projects: 'id, updatedAt',
       simulationRuns:
         'runId, architectureId, completedAt, [architectureId+completedAt]',
+    });
+    this.version(3).stores({
+      projects: 'id, updatedAt',
+      simulationRuns:
+        'runId, architectureId, completedAt, [architectureId+completedAt]',
+      trainingAttempts:
+        'id, challengeId, architectureId, status, updatedAt, [challengeId+updatedAt]',
     });
   }
 }
@@ -48,6 +57,29 @@ export async function saveProject(document: ArchitectureDocumentV1) {
 
 export async function loadMostRecentProject() {
   return database.projects.orderBy('updatedAt').last();
+}
+
+export async function loadProject(id: string) {
+  return database.projects.get(id);
+}
+
+export async function deleteProject(id: string) {
+  await database.projects.delete(id);
+}
+
+export async function saveTrainingAttempt(attempt: ChallengeAttempt) {
+  await database.trainingAttempts.put(structuredClone(attempt));
+}
+
+export async function loadTrainingAttempts() {
+  const attempts = await database.trainingAttempts
+    .orderBy('updatedAt')
+    .toArray();
+  return attempts.reverse();
+}
+
+export async function deleteTrainingAttempt(id: string) {
+  await database.trainingAttempts.delete(id);
 }
 
 export async function saveSimulationRun(

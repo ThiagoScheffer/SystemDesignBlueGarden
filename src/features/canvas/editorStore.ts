@@ -78,6 +78,10 @@ interface EditorState {
     description?: string;
     projectSettings: ProjectSettings;
   }) => void;
+  applyLearningConfiguration: (changes: {
+    projectSettings?: ProjectSettings;
+    scenario?: SimulationScenario;
+  }) => void;
   upsertScenario: (scenario: SimulationScenario) => void;
   removeScenario: (id: string) => void;
 }
@@ -523,6 +527,28 @@ export const useEditorStore = create<EditorState>((set) => ({
         projectSettings: structuredClone(draft.projectSettings),
       }),
     ),
+
+  applyLearningConfiguration: (changes) =>
+    set((state) => {
+      const scenarios = changes.scenario
+        ? state.document.scenarios.some(
+            (scenario) => scenario.id === changes.scenario?.id,
+          )
+          ? state.document.scenarios.map((scenario) =>
+              scenario.id === changes.scenario?.id
+                ? structuredClone(changes.scenario)
+                : scenario,
+            )
+          : [...state.document.scenarios, structuredClone(changes.scenario)]
+        : state.document.scenarios;
+      return withHistory(state, {
+        ...state.document,
+        projectSettings: changes.projectSettings
+          ? structuredClone(changes.projectSettings)
+          : state.document.projectSettings,
+        scenarios,
+      });
+    }),
 
   upsertScenario: (scenario) =>
     set((state) => {

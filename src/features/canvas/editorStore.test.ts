@@ -140,4 +140,31 @@ describe('editor store', () => {
       useEditorStore.getState().document.projectSettings.expectedScale,
     ).toBe('small');
   });
+
+  it('applies learning requirements and baseline as one undoable change each', () => {
+    useEditorStore.getState().addNode('client');
+    const document = useEditorStore.getState().document;
+    const settings = structuredClone(document.projectSettings);
+    settings.expectedScale = 'custom';
+    const scenario = {
+      id: 'learning-baseline',
+      name: 'Learning baseline',
+      durationSeconds: 60,
+      ambientFailureRate: 0,
+      traffic: [{ sourceNodeId: document.nodes[0].id, requestsPerSecond: 100 }],
+      events: [],
+    };
+    const history = useEditorStore.getState().past.length;
+    useEditorStore
+      .getState()
+      .applyLearningConfiguration({ projectSettings: settings, scenario });
+    expect(useEditorStore.getState().past).toHaveLength(history + 1);
+    expect(useEditorStore.getState().document.scenarios).toContainEqual(
+      scenario,
+    );
+    useEditorStore.getState().undo();
+    expect(
+      useEditorStore.getState().document.projectSettings.expectedScale,
+    ).toBe('small');
+  });
 });

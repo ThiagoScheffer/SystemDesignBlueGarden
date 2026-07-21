@@ -19,6 +19,7 @@ The application is functional as a local desktop-oriented web application. Its m
 - Project sharing visibility is metadata only; it does not publish a project
 - Editing is locked while a simulation is running or paused
 - The interface expects a desktop or wide browser viewport
+- A local Learning Studio provides five templates and five guided/interview challenges
 
 ## Technology Stack
 
@@ -157,6 +158,17 @@ Ambient and component failure probabilities are combined independently. Disabled
 - Study links are selected from a static reviewed catalog according to the component and active problem.
 - The Twitter case study appears only when local metadata, topology, and active diagnostics match a Twitter/feed architecture.
 
+## Learning Studio
+
+- Challenges: URL Shortener, Rate Limiter, News Feed, File Storage, and E-commerce Checkout.
+- Each challenge supports Guided and Interview modes using a separate architecture project.
+- Guided mode provides an 11-step workflow and hints; Interview mode uses a 30, 45, or 60-minute soft countdown.
+- Capacity worksheets estimate average/peak RPS, read/write traffic, retained storage, and monthly traffic.
+- Worksheet results change project requirements or scenarios only through explicit apply actions.
+- Hidden incidents target semantic component roles rather than template-specific IDs.
+- Attempts, answers, timer deadlines, incident state, and immutable submitted comparisons persist in IndexedDB.
+- Completed attempts compare the submitted and reference designs using the same canonical incident, neutral topology evidence, and simulation metrics. No score or pass/fail judgment is produced.
+
 ## Persistence and Compatibility
 
 The canonical `ArchitectureDocumentV1` contains metadata, project settings, nodes, edges, viewport data, and saved scenarios. It is independent of React Flow UI state.
@@ -195,7 +207,7 @@ The following areas are not yet complete or are suitable candidates for future p
 - Complete Region containment editing and interaction.
 - Full project-management screen for browsing, renaming, duplicating, or deleting saved projects.
 - Backend accounts, collaboration, permissions, and real publishing.
-- Native starter architecture templates and case-study designs.
+- Additional learning content beyond the initial five challenge/template packs.
 - Mobile editor layout.
 - More extensive Playwright coverage for the newer Project Settings and connection-menu workflows.
 - Production-grade performance profiling for very large diagrams.
