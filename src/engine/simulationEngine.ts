@@ -46,7 +46,14 @@ function logScenarioEvents(
   nodeById: Map<string, ArchitectureNodeV1>,
 ): SimulationLogEntry[] {
   return input.scenario.events
-    .filter((event) => event.atSecond === second)
+    .filter(
+      (event) =>
+        event.atSecond === second &&
+        !(
+          event.type === 'EDGE_LATENCY' &&
+          input.edges.find((edge) => edge.id === event.edgeId)?.config.disabled
+        ),
+    )
     .sort((a, b) => a.id.localeCompare(b.id))
     .map((event) => {
       let message: string;
@@ -166,14 +173,15 @@ function buildFindings(ticks: SimulationTick[]): BottleneckFinding[] {
 }
 
 export function runSimulation(input: SimulationInput): EngineResult {
-  const preflight = runPreflight(input.nodes, input.edges, input.scenario);
+  const activeEdges = input.edges.filter((edge) => !edge.config.disabled);
+  const preflight = runPreflight(input.nodes, activeEdges, input.scenario);
   if (preflight.errors.length) {
     throw new Error(preflight.errors.map((entry) => entry.message).join(' '));
   }
 
   const nodeById = new Map(input.nodes.map((node) => [node.id, node]));
   const outgoing = new Map<string, ArchitectureEdgeV1[]>();
-  for (const edge of input.edges) {
+  for (const edge of activeEdges) {
     const list = outgoing.get(edge.source) ?? [];
     list.push(edge);
     outgoing.set(edge.source, list);
@@ -267,7 +275,11 @@ export function runSimulation(input: SimulationInput): EngineResult {
         node.data.config.baseLatencyMs * 10 +
         (newBacklog / Math.max(effectiveCapacity, 1)) * 1000;
       const queueDelay = Math.min(theoreticalDelay, delayCap);
-      const failedByRate = processed * node.data.config.failureRate;
+      const effectiveFailureRate =
+        1 -
+        (1 - node.data.config.failureRate) *
+          (1 - (input.scenario.ambientFailureRate ?? 0));
+      const failedByRate = processed * effectiveFailureRate;
       const failed = overflow + failedByRate;
       const successfulOutput = Math.max(0, processed - failedByRate);
       const status: NodeMetric['status'] = isFailed
@@ -339,8 +351,11 @@ export function runSimulation(input: SimulationInput): EngineResult {
         const baseTransferred = routable * weight;
         const target = nodeById.get(edge.target)!;
         const attempts = Math.min(3, Math.max(0, edge.config.retryCount));
-        const retries =
-          baseTransferred * target.data.config.failureRate * attempts;
+        const targetFailureRate =
+          1 -
+          (1 - target.data.config.failureRate) *
+            (1 - (input.scenario.ambientFailureRate ?? 0));
+        const retries = baseTransferred * targetFailureRate * attempts;
         const transferred = baseTransferred + retries;
         incoming.set(
           edge.target,
@@ -398,7 +413,7 @@ export function runSimulation(input: SimulationInput): EngineResult {
       previousStatus.set(nodeId, status);
     }
 
-    for (const edge of input.edges) {
+    for (const edge of activeEdges) {
       const metric = edgeMetrics[edge.id];
       const targetMetric = nodeMetrics[edge.target];
       if (!metric || !targetMetric) continue;
@@ -457,8 +472,7 @@ export function runSimulation(input: SimulationInput): EngineResult {
         metric.incomingRps > 0
           ? Math.max(
               0,
-              (metric.processedRps -
-                metric.processedRps * node.data.config.failureRate) /
+              (metric.processedRps - metric.processingFailureRps) /
                 metric.incomingRps,
             )
           : 1;

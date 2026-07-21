@@ -51,7 +51,8 @@ export const simulationScenarioSchema = z
     id: z.string().min(1),
     name: z.string().min(1),
     description: z.string().optional(),
-    durationSeconds: z.number().int().min(10).max(3600),
+    durationSeconds: z.number().int().min(1).max(86_400),
+    ambientFailureRate: z.number().finite().min(0).max(1).optional(),
     traffic: z.array(
       z.object({
         sourceNodeId: z.string().min(1),

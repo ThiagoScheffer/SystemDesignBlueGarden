@@ -24,8 +24,12 @@ The first editor foundation includes:
 - Run, pause, resume, reset, and `1×`, `4×`, `16×`, or `MAX` speed controls.
 - Live canvas utilization overlays, KPI timelines, event navigation, and explainable bottleneck findings.
 - Scenario JSON persistence and retention of the ten newest completed runs per architecture.
+- Undoable Project Settings for scale, audience, complexity, simulation defaults, and export-only visibility metadata.
+- Advisory architecture assessment driven by project requirements.
+- Port and connection context menus with disconnect, reverse, duplicate, label, monitoring, disable, and endpoint reconnection operations.
+- Disabled-path simulation exclusion and independently combined ambient failure probability.
 
-Region containment, full clipboard/multi-select behavior, named-project management, and browser end-to-end tests remain in the Phase 1 backlog.
+Region containment and full clipboard/multi-select behavior remain in the editor backlog.
 
 ## Run locally
 
@@ -60,9 +64,9 @@ npm run format:check
 
 ## Architecture format
 
-The canonical document is independent of React Flow. Its current schema version is `1.2`, defined in `src/domain/architecture/schema.ts`, and its TypeScript contract is in `src/domain/architecture/types.ts`.
+The canonical document is independent of React Flow. Its current schema version is `1.3`, defined in `src/domain/architecture/schema.ts`, and its TypeScript contract is in `src/domain/architecture/types.ts`.
 
-Schema `1.0` and `1.1` files and IndexedDB projects are validated and migrated to `1.2` when loaded. Schema 1.2 adds saved simulation scenarios; completed run results remain in IndexedDB rather than architecture JSON. Unknown versions are rejected before the active design is replaced.
+Schema `1.0`, `1.1`, and `1.2` files and IndexedDB projects are validated and migrated to `1.3` when loaded. Schema 1.3 adds project requirements, simulation defaults, visibility metadata, connection state flags, and ambient scenario failure. Completed run results remain in IndexedDB rather than architecture JSON. Unknown versions are rejected before the active design is replaced.
 
 ## Simulator
 

@@ -8,12 +8,13 @@ import {
   type Connection,
   type Edge,
   type EdgeMouseHandler,
+  type FinalConnectionState,
   type NodeChange,
   type NodeMouseHandler,
   type NodeTypes,
   type ReactFlowInstance,
 } from '@xyflow/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from '../../domain/architecture/types';
 import { componentDefinitionMap } from '../../domain/components/definitions';
 import { computeAffectedEdgeStates } from '../../domain/simulation/diagnostics';
@@ -41,6 +42,34 @@ export function ArchitectureCanvas() {
   const updateNodePosition = useEditorStore(
     (state) => state.updateNodePosition,
   );
+  const deleteEdge = useEditorStore((state) => state.deleteEdge);
+  const deleteEdges = useEditorStore((state) => state.deleteEdges);
+  const reverseEdge = useEditorStore((state) => state.reverseEdge);
+  const duplicateEdge = useEditorStore((state) => state.duplicateEdge);
+  const reconnectArchitectureEdge = useEditorStore(
+    (state) => state.reconnectEdge,
+  );
+  const toggleEdgeDisabled = useEditorStore(
+    (state) => state.toggleEdgeDisabled,
+  );
+  const toggleEdgeMonitored = useEditorStore(
+    (state) => state.toggleEdgeMonitored,
+  );
+  const updateEdge = useEditorStore((state) => state.updateEdge);
+  const [menu, setMenu] = useState<
+    | null
+    | { kind: 'edge'; edgeId: string; x: number; y: number }
+    | {
+        kind: 'port';
+        nodeId: string;
+        port: 'source' | 'target';
+        x: number;
+        y: number;
+      }
+  >(null);
+  const [confirmIds, setConfirmIds] = useState<string[]>([]);
+  const [labelDraft, setLabelDraft] = useState('');
+  const reconnectSucceeded = useRef(false);
   const [instance, setInstance] = useState<ReactFlowInstance<
     ArchitectureFlowNode,
     Edge
@@ -52,6 +81,47 @@ export function ArchitectureCanvas() {
   );
   const closeDiagnostic = useSimulationStore((state) => state.closeDiagnostic);
   const locked = isSimulationLocked(simulationStatus);
+
+  useEffect(() => {
+    const close = (event: KeyboardEvent) =>
+      event.key === 'Escape' && (setMenu(null), setConfirmIds([]));
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, []);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setMenu(null);
+      setConfirmIds([]);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [document.id, simulationStatus]);
+  useEffect(() => {
+    if (!menu) return;
+    const valid =
+      menu.kind === 'edge'
+        ? document.edges.some((edge) => edge.id === menu.edgeId)
+        : document.nodes.some((node) => node.id === menu.nodeId);
+    if (!valid) {
+      const timeout = window.setTimeout(() => setMenu(null), 0);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [document.edges, document.nodes, menu]);
+
+  const openPortMenu = (
+    event: React.MouseEvent,
+    nodeId: string,
+    port: 'source' | 'target',
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({
+      kind: 'port',
+      nodeId,
+      port,
+      x: Math.min(event.clientX, window.innerWidth - 280),
+      y: Math.min(event.clientY, window.innerHeight - 320),
+    });
+  };
 
   useEffect(() => {
     if (
@@ -70,7 +140,7 @@ export function ArchitectureCanvas() {
         position: node.position,
         initialWidth: node.type === 'region' ? 190 : 158,
         initialHeight: 58,
-        data: { architecture: node },
+        data: { architecture: node, onPortContextMenu: openPortMenu },
         selected: selection?.kind === 'node' && selection.id === node.id,
       })),
     [document.nodes, selection],
@@ -78,7 +148,7 @@ export function ArchitectureCanvas() {
 
   const edges = useMemo<Edge[]>(() => {
     const diagnosticStates = computeAffectedEdgeStates(
-      document.edges,
+      document.edges.filter((edge) => !edge.config.disabled),
       latestTick,
     );
     return document.edges.map((edge) => {
@@ -92,20 +162,41 @@ export function ArchitectureCanvas() {
             : diagnosticState === 'bottleneck'
               ? 'path affected by a bottleneck'
               : 'normal path';
+      const parallels = document.edges.filter(
+        (candidate) =>
+          candidate.source === edge.source && candidate.target === edge.target,
+      );
+      const parallelIndex = parallels.findIndex(
+        (candidate) => candidate.id === edge.id,
+      );
+      const stateLabels = [
+        edge.config.disabled && 'Disabled',
+        edge.config.monitored && 'Monitored',
+      ].filter(Boolean);
       return {
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        label: edge.label || edge.config.protocol,
+        label: [edge.label || edge.config.protocol, ...stateLabels].join(' · '),
         ariaLabel: `${edge.label || edge.config.protocol} connection: ${stateDescription}`,
-        className: diagnosticState ? `edge-${diagnosticState}` : undefined,
+        className: [
+          diagnosticState && `edge-${diagnosticState}`,
+          edge.config.disabled && 'edge-disabled',
+          edge.config.monitored && 'edge-monitored',
+        ]
+          .filter(Boolean)
+          .join(' '),
         selected: selection?.kind === 'edge' && selection.id === edge.id,
         markerEnd: { type: MarkerType.ArrowClosed },
-        animated: traffic > 0,
+        animated: !edge.config.disabled && traffic > 0,
+        reconnectable: !locked,
+        pathOptions: { curvature: 0.25 + parallelIndex * 0.18 },
         style: {
           strokeWidth: traffic > 0 ? 2.3 : 1.6,
-          strokeDasharray:
-            diagnosticState === 'affected-error'
+          opacity: edge.config.disabled ? 0.42 : 1,
+          strokeDasharray: edge.config.disabled
+            ? '8 6'
+            : diagnosticState === 'affected-error'
               ? '7 4'
               : diagnosticState === 'bottleneck'
                 ? '4 4'
@@ -113,7 +204,7 @@ export function ArchitectureCanvas() {
         },
       };
     });
-  }, [document.edges, latestTick, selection]);
+  }, [document.edges, latestTick, locked, selection]);
 
   const handleNodeChanges = (changes: NodeChange<ArchitectureFlowNode>[]) => {
     for (const change of changes) {
@@ -143,6 +234,18 @@ export function ArchitectureCanvas() {
   };
   const selectEdge: EdgeMouseHandler = (_, edge) =>
     select({ kind: 'edge', id: edge.id });
+  const contextEdge: EdgeMouseHandler = (event, edge) => {
+    event.preventDefault();
+    setLabelDraft(
+      document.edges.find((candidate) => candidate.id === edge.id)?.label ?? '',
+    );
+    setMenu({
+      kind: 'edge',
+      edgeId: edge.id,
+      x: Math.min(event.clientX, window.innerWidth - 270),
+      y: Math.min(event.clientY, window.innerHeight - 390),
+    });
+  };
 
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
@@ -175,15 +278,37 @@ export function ArchitectureCanvas() {
         onNodeClick={selectNode}
         onNodeDoubleClick={showNodeInfo}
         onEdgeClick={selectEdge}
+        onEdgeContextMenu={contextEdge}
         onPaneClick={() => {
           closeDiagnostic();
           select(null);
         }}
         onConnect={connect}
+        onReconnectStart={() => {
+          reconnectSucceeded.current = false;
+        }}
+        onReconnect={(oldEdge, connection) => {
+          reconnectSucceeded.current = true;
+          reconnectArchitectureEdge(
+            oldEdge.id,
+            connection.source,
+            connection.target,
+          );
+        }}
+        onReconnectEnd={(
+          _event,
+          edge,
+          _handle,
+          state: FinalConnectionState,
+        ) => {
+          if (!reconnectSucceeded.current && !state.isValid)
+            deleteEdge(edge.id);
+        }}
         onNodeDragStart={checkpoint}
         onNodeDragStop={commitTransaction}
         nodesDraggable={!locked}
         nodesConnectable={!locked}
+        edgesReconnectable={!locked}
         fitView
         snapToGrid
         snapGrid={[16, 16]}
@@ -216,6 +341,201 @@ export function ArchitectureCanvas() {
           <span>Start your architecture</span>
           <strong>Drag a component here</strong>
           <p>or click one in the library</p>
+        </div>
+      )}
+      {menu && (
+        <div className="canvas-menu-backdrop" onMouseDown={() => setMenu(null)}>
+          <div
+            className="canvas-context-menu"
+            role="menu"
+            style={{ left: menu.x, top: menu.y }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            {menu.kind === 'edge'
+              ? (() => {
+                  const edge = document.edges.find(
+                    (candidate) => candidate.id === menu.edgeId,
+                  );
+                  if (!edge) return null;
+                  return (
+                    <>
+                      <h3>Connection</h3>
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          select({ kind: 'edge', id: edge.id });
+                          setMenu(null);
+                        }}
+                      >
+                        Edit connection
+                      </button>
+                      <button
+                        role="menuitem"
+                        disabled={locked}
+                        onClick={() => {
+                          reverseEdge(edge.id);
+                          setMenu(null);
+                        }}
+                      >
+                        Reverse direction
+                      </button>
+                      <button
+                        role="menuitem"
+                        disabled={locked}
+                        onClick={() => {
+                          duplicateEdge(edge.id);
+                          setMenu(null);
+                        }}
+                      >
+                        Duplicate connection
+                      </button>
+                      <label>
+                        Label
+                        <input
+                          autoFocus
+                          value={labelDraft}
+                          disabled={locked}
+                          onChange={(event) =>
+                            setLabelDraft(event.target.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              updateEdge(edge.id, { label: labelDraft });
+                              setMenu(null);
+                            }
+                            if (event.key === 'Escape') setMenu(null);
+                          }}
+                        />
+                      </label>
+                      <button
+                        role="menuitem"
+                        disabled={locked}
+                        onClick={() => {
+                          toggleEdgeMonitored(edge.id);
+                          setMenu(null);
+                        }}
+                      >
+                        {edge.config.monitored
+                          ? 'Remove monitoring'
+                          : 'Add monitoring'}
+                      </button>
+                      <button
+                        role="menuitem"
+                        disabled={locked}
+                        onClick={() => {
+                          toggleEdgeDisabled(edge.id);
+                          setMenu(null);
+                        }}
+                      >
+                        {edge.config.disabled
+                          ? 'Enable connection'
+                          : 'Disable connection'}
+                      </button>
+                      <button
+                        className="danger-menu-item"
+                        role="menuitem"
+                        disabled={locked}
+                        onClick={() => {
+                          deleteEdge(edge.id);
+                          setMenu(null);
+                        }}
+                      >
+                        Remove connection
+                      </button>
+                    </>
+                  );
+                })()
+              : (() => {
+                  const attached = document.edges.filter((edge) =>
+                    menu.port === 'source'
+                      ? edge.source === menu.nodeId
+                      : edge.target === menu.nodeId,
+                  );
+                  return (
+                    <>
+                      <h3>Connection Point</h3>
+                      {attached.length === 0 && (
+                        <p>No connections on this port.</p>
+                      )}
+                      {attached.map((edge) => {
+                        const source =
+                          document.nodes.find((node) => node.id === edge.source)
+                            ?.data.label ?? edge.source;
+                        const target =
+                          document.nodes.find((node) => node.id === edge.target)
+                            ?.data.label ?? edge.target;
+                        return (
+                          <div className="port-edge-row" key={edge.id}>
+                            <button
+                              role="menuitem"
+                              onClick={() => {
+                                select({ kind: 'edge', id: edge.id });
+                                setMenu(null);
+                              }}
+                            >
+                              {source} → {target}
+                            </button>
+                            <button
+                              aria-label={`Disconnect ${source} to ${target}`}
+                              disabled={locked}
+                              onClick={() => {
+                                deleteEdge(edge.id);
+                                setMenu(null);
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {attached.length > 1 && (
+                        <button
+                          className="danger-menu-item"
+                          disabled={locked}
+                          onClick={() => {
+                            setConfirmIds(attached.map((edge) => edge.id));
+                            setMenu(null);
+                          }}
+                        >
+                          Disconnect all ({attached.length})
+                        </button>
+                      )}
+                      <button onClick={() => setMenu(null)}>Cancel</button>
+                    </>
+                  );
+                })()}
+          </div>
+        </div>
+      )}
+      {confirmIds.length > 0 && (
+        <div className="confirm-backdrop">
+          <div
+            className="confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="disconnect-title"
+          >
+            <h2 id="disconnect-title">
+              Disconnect {confirmIds.length} connections?
+            </h2>
+            <p>
+              This removes every connection attached to this port. You can undo
+              the operation.
+            </p>
+            <div>
+              <button onClick={() => setConfirmIds([])}>Cancel</button>
+              <button
+                className="danger-action"
+                disabled={locked}
+                onClick={() => {
+                  deleteEdges(confirmIds);
+                  setConfirmIds([]);
+                }}
+              >
+                Disconnect all
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>

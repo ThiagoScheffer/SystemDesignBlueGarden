@@ -41,7 +41,12 @@ export function SimulationControls({
   const run = () => {
     const scenario =
       document.scenarios[0] ??
-      createScenarioPreset('baseline', document.nodes, document.edges);
+      createScenarioPreset(
+        'baseline',
+        document.nodes,
+        document.edges,
+        document.projectSettings.simulationDefaults,
+      );
     if (!start(scenario)) setDrawerOpen(true);
   };
 

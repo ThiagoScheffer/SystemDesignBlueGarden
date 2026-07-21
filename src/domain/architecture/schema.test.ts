@@ -41,12 +41,12 @@ describe('architecture document schema', () => {
 
     const migrated = parseArchitectureDocument(legacy);
 
-    expect(migrated.schemaVersion).toBe('1.2');
+    expect(migrated.schemaVersion).toBe('1.3');
     expect(migrated.scenarios).toEqual([]);
     expect(migrated.nodes[0].data.config.hitRatePercent).toBe(80);
   });
 
-  it('migrates a 1.1 document to 1.2 without changing its architecture ID', () => {
+  it('migrates a 1.1 document to 1.3 without changing its architecture ID', () => {
     const current = createArchitectureDocument('Version 1.1');
     const document = structuredClone(current) as unknown as Record<
       string,
@@ -57,9 +57,51 @@ describe('architecture document schema', () => {
 
     const migrated = parseArchitectureDocument(legacy);
 
-    expect(migrated.schemaVersion).toBe('1.2');
+    expect(migrated.schemaVersion).toBe('1.3');
     expect(migrated.id).toBe(current.id);
     expect(migrated.scenarios).toEqual([]);
+  });
+
+  it('migrates 1.2 settings, connection flags, and ambient failure defaults', () => {
+    const current = createArchitectureDocument('Version 1.2');
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const api = createArchitectureNode('api-gateway', { x: 100, y: 0 });
+    const edge = createArchitectureEdge(client.id, api.id);
+    const legacy = structuredClone({
+      ...current,
+      schemaVersion: '1.2',
+      nodes: [client, api],
+      edges: [edge],
+      scenarios: [
+        {
+          id: 'legacy',
+          name: 'Legacy',
+          durationSeconds: 10,
+          traffic: [{ sourceNodeId: client.id, requestsPerSecond: 10 }],
+          events: [],
+        },
+      ],
+    }) as unknown as Record<string, unknown>;
+    delete legacy.projectSettings;
+    const legacyEdge = (
+      legacy.edges as Array<{ config: Record<string, unknown> }>
+    )[0];
+    delete legacyEdge.config.disabled;
+    delete legacyEdge.config.monitored;
+
+    const migrated = parseArchitectureDocument(legacy);
+    expect(migrated.projectSettings.expectedScale).toBe('small');
+    expect(migrated.edges[0].config).toMatchObject({
+      disabled: false,
+      monitored: false,
+    });
+    expect(migrated.scenarios[0].ambientFailureRate).toBe(0);
+  });
+
+  it('rejects malformed project settings', () => {
+    const document = createArchitectureDocument();
+    document.projectSettings.simulationDefaults.durationSeconds = 0;
+    expect(() => parseArchitectureDocument(document)).toThrow();
   });
 
   it('accepts a configured Sharding router', () => {

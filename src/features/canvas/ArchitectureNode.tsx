@@ -15,7 +15,14 @@ import {
 } from '../simulation/simulationStore';
 
 export type ArchitectureFlowNode = Node<
-  { architecture: ArchitectureNodeV1 },
+  {
+    architecture: ArchitectureNodeV1;
+    onPortContextMenu?: (
+      event: React.MouseEvent,
+      nodeId: string,
+      port: 'source' | 'target',
+    ) => void;
+  },
   'architecture'
 >;
 
@@ -149,7 +156,13 @@ export function ArchitectureNode({
       aria-label={`${definition.label} architecture component`}
     >
       {!isNote && !isRegion && (
-        <Handle type="target" position={Position.Left} />
+        <Handle
+          type="target"
+          position={Position.Left}
+          onContextMenu={(event) =>
+            data.onPortContextMenu?.(event, node.id, 'target')
+          }
+        />
       )}
       <div className="architecture-node-icon">
         <Icon aria-hidden="true" size={18} />
@@ -163,7 +176,13 @@ export function ArchitectureNode({
         </span>
       </div>
       {!isNote && !isRegion && (
-        <Handle type="source" position={Position.Right} />
+        <Handle
+          type="source"
+          position={Position.Right}
+          onContextMenu={(event) =>
+            data.onPortContextMenu?.(event, node.id, 'source')
+          }
+        />
       )}
       {metric && (
         <div className={`node-metric-badge metric-${metric.status}`}>

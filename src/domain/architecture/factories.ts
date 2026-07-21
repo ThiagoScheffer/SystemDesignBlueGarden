@@ -5,6 +5,7 @@ import type {
   ArchitectureNodeV1,
   ComponentType,
 } from './types';
+import { createDefaultProjectSettings } from './projectSettings';
 
 const makeId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 
@@ -13,10 +14,11 @@ export function createArchitectureDocument(
 ): ArchitectureDocumentV1 {
   const now = new Date().toISOString();
   return {
-    schemaVersion: '1.2',
+    schemaVersion: '1.3',
     id: makeId('architecture'),
     metadata: { name, createdAt: now, updatedAt: now },
     viewport: { x: 0, y: 0, zoom: 1 },
+    projectSettings: createDefaultProjectSettings(),
     nodes: [],
     edges: [],
     scenarios: [],
@@ -57,6 +59,8 @@ export function createArchitectureEdge(
       timeoutMs: 1000,
       retryCount: 1,
       trafficPercentage: 100,
+      disabled: false,
+      monitored: false,
     },
   };
 }

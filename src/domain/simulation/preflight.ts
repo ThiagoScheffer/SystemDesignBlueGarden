@@ -40,10 +40,11 @@ export function runPreflight(
   }
 
   const operational = nodes.filter(isOperational);
+  const activeEdges = edges.filter((edge) => !edge.config.disabled);
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const edgeById = new Map(edges.map((edge) => [edge.id, edge]));
   const outgoing = new Map<string, ArchitectureEdgeV1[]>();
-  for (const edge of edges) {
+  for (const edge of activeEdges) {
     const list = outgoing.get(edge.source) ?? [];
     list.push(edge);
     outgoing.set(edge.source, list);
@@ -93,7 +94,7 @@ export function runPreflight(
   );
   const reachableIds = new Set(reachableOperational.map((node) => node.id));
   const indegree = new Map(reachableOperational.map((node) => [node.id, 0]));
-  for (const edge of edges) {
+  for (const edge of activeEdges) {
     if (reachableIds.has(edge.source) && reachableIds.has(edge.target)) {
       indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
     }
@@ -206,7 +207,7 @@ export function runPreflight(
     }
   }
 
-  for (const edge of edges) {
+  for (const edge of activeEdges) {
     if (
       (edge.config.mode === 'asynchronous' &&
         edge.config.protocol !== 'Async') ||

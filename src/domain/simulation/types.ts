@@ -63,6 +63,7 @@ export interface SimulationScenario {
   name: string;
   description?: string;
   durationSeconds: number;
+  ambientFailureRate?: number;
   traffic: TrafficSource[];
   events: ScenarioEvent[];
 }

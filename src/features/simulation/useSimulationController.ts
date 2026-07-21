@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { ArchitectureDocumentV1 } from '../../domain/architecture/types';
 import { runPreflight } from '../../domain/simulation/preflight';
+import { assessProject } from '../../domain/architecture/projectAssessment';
 import type {
   SimulationScenario,
   SimulationSpeed,
@@ -23,6 +24,16 @@ export function useSimulationController(document: ArchitectureDocumentV1) {
   const start = useCallback(
     (scenario: SimulationScenario, acknowledgeWarnings = false) => {
       const preflight = runPreflight(document.nodes, document.edges, scenario);
+      preflight.warnings.push(
+        ...assessProject(document).map((finding) => ({
+          id: `project-${finding.id}`,
+          severity: 'warning' as const,
+          code: finding.id.toUpperCase().replaceAll('-', '_'),
+          message: `${finding.title}: ${finding.message}`,
+          nodeId: finding.nodeId,
+          edgeId: finding.edgeId,
+        })),
+      );
       useSimulationStore.getState().prepare(scenario, preflight);
       if (
         preflight.errors.length ||

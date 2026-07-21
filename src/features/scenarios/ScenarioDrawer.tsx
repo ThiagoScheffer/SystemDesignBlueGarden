@@ -109,8 +109,18 @@ export function ScenarioDrawer({
   const initial = useMemo(
     () =>
       document.scenarios[0] ??
-      createScenarioPreset('baseline', document.nodes, document.edges),
-    [document.edges, document.nodes, document.scenarios],
+      createScenarioPreset(
+        'baseline',
+        document.nodes,
+        document.edges,
+        document.projectSettings.simulationDefaults,
+      ),
+    [
+      document.edges,
+      document.nodes,
+      document.projectSettings.simulationDefaults,
+      document.scenarios,
+    ],
   );
   const [draft, setDraft] = useState<SimulationScenario>(initial);
   const [acknowledge, setAcknowledge] = useState(false);
@@ -122,12 +132,23 @@ export function ScenarioDrawer({
     const timeout = window.setTimeout(() => {
       setDraft(
         document.scenarios[0] ??
-          createScenarioPreset('baseline', document.nodes, document.edges),
+          createScenarioPreset(
+            'baseline',
+            document.nodes,
+            document.edges,
+            document.projectSettings.simulationDefaults,
+          ),
       );
       setAcknowledge(false);
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [document.edges, document.nodes, document.scenarios, open]);
+  }, [
+    document.edges,
+    document.nodes,
+    document.projectSettings.simulationDefaults,
+    document.scenarios,
+    open,
+  ]);
 
   if (!open) return null;
   const updateEvent = (id: string, changes: Partial<ScenarioEvent>) =>
@@ -181,6 +202,7 @@ export function ScenarioDrawer({
                         preset,
                         document.nodes,
                         document.edges,
+                        document.projectSettings.simulationDefaults,
                       ),
                     )
                   }
@@ -205,12 +227,28 @@ export function ScenarioDrawer({
               <input
                 type="number"
                 min="10"
-                max="3600"
+                max="86400"
                 value={draft.durationSeconds}
                 onChange={(event) =>
                   setDraft({
                     ...draft,
                     durationSeconds: Number(event.target.value),
+                  })
+                }
+              />
+            </label>
+            <label>
+              <span>Ambient failure (%)</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={(draft.ambientFailureRate ?? 0) * 100}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    ambientFailureRate: Number(event.target.value) / 100,
                   })
                 }
               />

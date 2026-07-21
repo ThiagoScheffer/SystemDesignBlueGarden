@@ -1,4 +1,12 @@
-import { Download, FilePlus2, Leaf, Redo2, Undo2, Upload } from 'lucide-react';
+import {
+  Download,
+  FilePlus2,
+  Leaf,
+  Redo2,
+  Settings,
+  Undo2,
+  Upload,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useEditorStore } from '../canvas/editorStore';
 import {
@@ -11,6 +19,7 @@ import {
   isSimulationLocked,
   useSimulationStore,
 } from '../simulation/simulationStore';
+import { ProjectSettingsDrawer } from './ProjectSettingsDrawer';
 
 export function TopBar({
   saveStatus,
@@ -21,6 +30,7 @@ export function TopBar({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const document = useEditorStore((state) => state.document);
   const past = useEditorStore((state) => state.past);
   const future = useEditorStore((state) => state.future);
@@ -60,6 +70,7 @@ export function TopBar({
       <div className="project-title">
         <input
           aria-label="Architecture name"
+          maxLength={120}
           value={document.metadata.name}
           disabled={locked}
           onChange={(event) =>
@@ -126,12 +137,28 @@ export function TopBar({
           onChange={(event) => void importFile(event.target.files?.[0])}
         />
         <span className="toolbar-divider" />
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(true)}
+          title="Project settings"
+        >
+          <Settings aria-hidden="true" size={17} />
+          <span>Settings</span>
+        </button>
+        <span className="toolbar-divider" />
         {simulationControls}
       </nav>
       {importError && (
         <div className="import-error" role="alert" title={importError}>
           Import failed
         </div>
+      )}
+      {settingsOpen && (
+        <ProjectSettingsDrawer
+          open
+          onClose={() => setSettingsOpen(false)}
+          locked={locked}
+        />
       )}
     </header>
   );

@@ -9,6 +9,7 @@ import type {
   ComponentType,
   EdgeConfig,
   OperationalConfig,
+  ProjectSettings,
 } from '../../domain/architecture/types';
 import type { SimulationScenario } from '../../domain/simulation/types';
 
@@ -24,6 +25,13 @@ interface EditorState {
   transactionBase: ArchitectureDocumentV1 | null;
   addNode: (type: ComponentType, position?: { x: number; y: number }) => void;
   addEdge: (source: string, target: string) => void;
+  deleteEdge: (id: string) => void;
+  deleteEdges: (ids: string[]) => void;
+  reverseEdge: (id: string) => void;
+  duplicateEdge: (id: string) => void;
+  reconnectEdge: (id: string, source: string, target: string) => void;
+  toggleEdgeDisabled: (id: string) => void;
+  toggleEdgeMonitored: (id: string) => void;
   updateNodePosition: (id: string, position: { x: number; y: number }) => void;
   updateNode: (
     id: string,
@@ -65,6 +73,11 @@ interface EditorState {
   hydrateDocument: (document: ArchitectureDocumentV1) => void;
   replaceDocument: (document: ArchitectureDocumentV1) => void;
   renameDocument: (name: string) => void;
+  saveProjectSettings: (draft: {
+    name: string;
+    description?: string;
+    projectSettings: ProjectSettings;
+  }) => void;
   upsertScenario: (scenario: SimulationScenario) => void;
   removeScenario: (id: string) => void;
 }
@@ -181,6 +194,120 @@ export const useEditorStore = create<EditorState>((set) => ({
         }),
         selection: { kind: 'edge', id: edge.id },
       };
+    }),
+
+  deleteEdge: (id) =>
+    set((state) => ({
+      ...withHistory(state, {
+        ...state.document,
+        edges: state.document.edges.filter((edge) => edge.id !== id),
+      }),
+      selection:
+        state.selection?.kind === 'edge' && state.selection.id === id
+          ? null
+          : state.selection,
+    })),
+
+  deleteEdges: (ids) =>
+    set((state) => {
+      const targets = new Set(ids);
+      if (!state.document.edges.some((edge) => targets.has(edge.id)))
+        return state;
+      return {
+        ...withHistory(state, {
+          ...state.document,
+          edges: state.document.edges.filter((edge) => !targets.has(edge.id)),
+        }),
+        selection:
+          state.selection?.kind === 'edge' && targets.has(state.selection.id)
+            ? null
+            : state.selection,
+      };
+    }),
+
+  reverseEdge: (id) =>
+    set((state) => {
+      const edge = state.document.edges.find(
+        (candidate) => candidate.id === id,
+      );
+      if (!edge) return state;
+      return withHistory(state, {
+        ...state.document,
+        edges: state.document.edges.map((candidate) =>
+          candidate.id === id
+            ? {
+                ...candidate,
+                source: candidate.target,
+                target: candidate.source,
+              }
+            : candidate,
+        ),
+      });
+    }),
+
+  duplicateEdge: (id) =>
+    set((state) => {
+      const edge = state.document.edges.find(
+        (candidate) => candidate.id === id,
+      );
+      if (!edge) return state;
+      const duplicate = {
+        ...structuredClone(edge),
+        id: `edge-${crypto.randomUUID()}`,
+      };
+      return {
+        ...withHistory(state, {
+          ...state.document,
+          edges: [...state.document.edges, duplicate],
+        }),
+        selection: { kind: 'edge' as const, id: duplicate.id },
+      };
+    }),
+
+  reconnectEdge: (id, source, target) =>
+    set((state) => {
+      if (source === target) return state;
+      const edge = state.document.edges.find(
+        (candidate) => candidate.id === id,
+      );
+      if (!edge || (edge.source === source && edge.target === target))
+        return state;
+      return withHistory(state, {
+        ...state.document,
+        edges: state.document.edges.map((candidate) =>
+          candidate.id === id ? { ...candidate, source, target } : candidate,
+        ),
+      });
+    }),
+
+  toggleEdgeDisabled: (id) =>
+    set((state) => {
+      const edge = state.document.edges.find(
+        (candidate) => candidate.id === id,
+      );
+      return edge
+        ? withHistory(
+            state,
+            applyEdgeUpdate(state.document, id, {
+              config: { disabled: !edge.config.disabled },
+            }),
+          )
+        : state;
+    }),
+
+  toggleEdgeMonitored: (id) =>
+    set((state) => {
+      const edge = state.document.edges.find(
+        (candidate) => candidate.id === id,
+      );
+      return edge
+        ? withHistory(
+            state,
+            applyEdgeUpdate(state.document, id, {
+              config: { monitored: !edge.config.monitored },
+            }),
+          )
+        : state;
     }),
 
   updateNodePosition: (id, position) =>
@@ -383,6 +510,19 @@ export const useEditorStore = create<EditorState>((set) => ({
         metadata: { ...state.document.metadata, name },
       }),
     })),
+
+  saveProjectSettings: (draft) =>
+    set((state) =>
+      withHistory(state, {
+        ...state.document,
+        metadata: {
+          ...state.document.metadata,
+          name: draft.name,
+          description: draft.description,
+        },
+        projectSettings: structuredClone(draft.projectSettings),
+      }),
+    ),
 
   upsertScenario: (scenario) =>
     set((state) => {

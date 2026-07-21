@@ -384,6 +384,37 @@ describe('deterministic simulation engine', () => {
     );
   });
 
+  it('excludes disabled connections from traffic routing', () => {
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const service = createArchitectureNode('application-server', {
+      x: 100,
+      y: 0,
+    });
+    client.data.config.failureRate = 0;
+    service.data.config.failureRate = 0;
+    const edge = createArchitectureEdge(client.id, service.id);
+    edge.config.disabled = true;
+    expect(() =>
+      runSimulation(input([client, service], [edge], scenario(client.id, 100))),
+    ).toThrow(/no reachable operational target/i);
+  });
+
+  it('combines ambient and component failures independently', () => {
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const service = createArchitectureNode('application-server', {
+      x: 100,
+      y: 0,
+    });
+    client.data.config.failureRate = 0;
+    service.data.config.failureRate = 0.1;
+    const edge = createArchitectureEdge(client.id, service.id);
+    const testScenario = scenario(client.id, 100);
+    testScenario.ambientFailureRate = 0.2;
+    const metric = runSimulation(input([client, service], [edge], testScenario))
+      .ticks[0].nodes[service.id];
+    expect(metric.processingFailureRps / metric.processedRps).toBeCloseTo(0.28);
+  });
+
   it('completes a 15-minute 100-node graph within the Phase 2 budget', () => {
     const client = createArchitectureNode('client', { x: 0, y: 0 });
     client.data.config.failureRate = 0;

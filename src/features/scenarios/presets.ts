@@ -1,6 +1,7 @@
 import type {
   ArchitectureEdgeV1,
   ArchitectureNodeV1,
+  SimulationDefaults,
 } from '../../domain/architecture/types';
 import type { SimulationScenario } from '../../domain/simulation/types';
 
@@ -27,16 +28,23 @@ export function createScenarioPreset(
   preset: ScenarioPreset,
   nodes: ArchitectureNodeV1[],
   edges: ArchitectureEdgeV1[],
+  defaults?: SimulationDefaults,
 ): SimulationScenario {
   const id = `scenario-${crypto.randomUUID()}`;
   const client = nodes.find((node) => node.type === 'client');
   const traffic = client
-    ? [{ sourceNodeId: client.id, requestsPerSecond: 1000 }]
+    ? [
+        {
+          sourceNodeId: client.id,
+          requestsPerSecond: defaults?.initialRps ?? 1000,
+        },
+      ]
     : [];
   const base: SimulationScenario = {
     id,
     name: scenarioPresetLabels[preset],
-    durationSeconds: 120,
+    durationSeconds: defaults?.durationSeconds ?? 120,
+    ambientFailureRate: defaults?.ambientFailureRate ?? 0,
     traffic,
     events: [],
   };
@@ -47,16 +55,16 @@ export function createScenarioPreset(
       {
         id: eventId('spike'),
         type: 'TRAFFIC_SET',
-        atSecond: 30,
+        atSecond: Math.floor(base.durationSeconds * 0.25),
         sourceNodeId: client.id,
-        requestsPerSecond: 5000,
+        requestsPerSecond: defaults?.peakRps ?? 5000,
       },
       {
         id: eventId('restore'),
         type: 'TRAFFIC_SET',
-        atSecond: 90,
+        atSecond: Math.floor(base.durationSeconds * 0.75),
         sourceNodeId: client.id,
-        requestsPerSecond: 1000,
+        requestsPerSecond: defaults?.initialRps ?? 1000,
       },
     ];
   }

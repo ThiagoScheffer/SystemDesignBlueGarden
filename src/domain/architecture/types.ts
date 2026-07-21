@@ -77,6 +77,8 @@ export interface EdgeConfig {
   timeoutMs: number;
   retryCount: number;
   trafficPercentage: number;
+  disabled: boolean;
+  monitored: boolean;
 }
 
 export interface ArchitectureEdgeV1 {
@@ -87,8 +89,42 @@ export interface ArchitectureEdgeV1 {
   config: EdgeConfig;
 }
 
+export type ExpectedScale = 'small' | 'medium' | 'large' | 'custom';
+export type ExpectedUsers =
+  'under-100' | '100-1000' | '1000-100000' | 'over-100000' | 'custom';
+export type ExpectedComplexity = 'low' | 'medium' | 'high' | 'very-high';
+export type ProjectVisibility = 'private' | 'shared' | 'public-template';
+
+export interface CustomProjectScale {
+  registeredUsers?: number;
+  monthlyActiveUsers?: number;
+  dailyActiveUsers?: number;
+  concurrentUsers?: number;
+  requestsPerSecond?: number;
+  dailyTransactions?: number;
+  storageGB?: number;
+  monthlyTrafficGB?: number;
+  peakTrafficMultiplier?: number;
+}
+
+export interface SimulationDefaults {
+  initialRps: number;
+  peakRps: number;
+  ambientFailureRate: number;
+  durationSeconds: number;
+}
+
+export interface ProjectSettings {
+  expectedScale: ExpectedScale;
+  expectedUsers: ExpectedUsers;
+  expectedComplexity: ExpectedComplexity;
+  customScale?: CustomProjectScale;
+  simulationDefaults: SimulationDefaults;
+  visibility: ProjectVisibility;
+}
+
 export interface ArchitectureDocumentV1 {
-  schemaVersion: '1.2';
+  schemaVersion: '1.3';
   id: string;
   metadata: {
     name: string;
@@ -97,6 +133,7 @@ export interface ArchitectureDocumentV1 {
     updatedAt: string;
   };
   viewport?: { x: number; y: number; zoom: number };
+  projectSettings: ProjectSettings;
   nodes: ArchitectureNodeV1[];
   edges: ArchitectureEdgeV1[];
   scenarios: SimulationScenario[];

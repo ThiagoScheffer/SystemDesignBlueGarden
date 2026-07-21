@@ -95,4 +95,49 @@ describe('editor store', () => {
     useEditorStore.getState().select(null);
     expect(useEditorStore.getState().expandedInfoNodeId).toBeNull();
   });
+
+  it('supports reversible connection management actions', () => {
+    const store = useEditorStore.getState();
+    store.addNode('client');
+    store.addNode('api-gateway');
+    const [client, gateway] = useEditorStore.getState().document.nodes;
+    useEditorStore.getState().addEdge(client.id, gateway.id);
+    const edge = useEditorStore.getState().document.edges[0];
+    useEditorStore.getState().toggleEdgeDisabled(edge.id);
+    useEditorStore.getState().toggleEdgeMonitored(edge.id);
+    useEditorStore.getState().duplicateEdge(edge.id);
+    expect(useEditorStore.getState().document.edges).toHaveLength(2);
+    expect(useEditorStore.getState().document.edges[0].config).toMatchObject({
+      disabled: true,
+      monitored: true,
+    });
+    useEditorStore.getState().reverseEdge(edge.id);
+    expect(useEditorStore.getState().document.edges[0]).toMatchObject({
+      source: gateway.id,
+      target: client.id,
+    });
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().document.edges[0]).toMatchObject({
+      source: client.id,
+      target: gateway.id,
+    });
+  });
+
+  it('saves all project settings in one undo entry', () => {
+    const before = useEditorStore.getState().past.length;
+    const settings = structuredClone(
+      useEditorStore.getState().document.projectSettings,
+    );
+    settings.expectedScale = 'large';
+    useEditorStore.getState().saveProjectSettings({
+      name: 'Large project',
+      description: 'A detailed project description.',
+      projectSettings: settings,
+    });
+    expect(useEditorStore.getState().past).toHaveLength(before + 1);
+    useEditorStore.getState().undo();
+    expect(
+      useEditorStore.getState().document.projectSettings.expectedScale,
+    ).toBe('small');
+  });
 });

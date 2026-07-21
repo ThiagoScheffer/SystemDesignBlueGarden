@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { simulationScenarioSchema } from '../simulation/schema';
 import { COMPONENT_TYPES, type ArchitectureDocumentV1 } from './types';
+import { createDefaultProjectSettings } from './projectSettings';
 
 const nonNegative = z.number().finite().nonnegative();
 
@@ -79,7 +80,7 @@ const currentNodeSchema = baseNodeSchema.superRefine((node, context) => {
   }
 });
 
-const edgeSchema = z.object({
+const legacyEdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1),
   target: z.string().min(1),
@@ -97,12 +98,95 @@ const edgeSchema = z.object({
   }),
 });
 
+const edgeSchema = legacyEdgeSchema.extend({
+  config: legacyEdgeSchema.shape.config.extend({
+    disabled: z.boolean(),
+    monitored: z.boolean(),
+  }),
+});
+
 const metadataSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
+  name: z.string().min(1).max(120),
+  description: z.string().max(300).optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
+
+const customScaleSchema = z
+  .object({
+    registeredUsers: z.number().int().nonnegative().optional(),
+    monthlyActiveUsers: z.number().int().nonnegative().optional(),
+    dailyActiveUsers: z.number().int().nonnegative().optional(),
+    concurrentUsers: z.number().int().nonnegative().optional(),
+    requestsPerSecond: nonNegative.optional(),
+    dailyTransactions: z.number().int().nonnegative().optional(),
+    storageGB: nonNegative.optional(),
+    monthlyTrafficGB: nonNegative.optional(),
+    peakTrafficMultiplier: z.number().finite().min(1).optional(),
+  })
+  .superRefine((scale, context) => {
+    const ordered = [
+      ['registeredUsers', scale.registeredUsers],
+      ['monthlyActiveUsers', scale.monthlyActiveUsers],
+      ['dailyActiveUsers', scale.dailyActiveUsers],
+      ['concurrentUsers', scale.concurrentUsers],
+    ] as const;
+    for (let index = 1; index < ordered.length; index += 1) {
+      const previous = ordered[index - 1][1];
+      const current = ordered[index][1];
+      if (
+        previous !== undefined &&
+        current !== undefined &&
+        current > previous
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: [ordered[index][0]],
+          message: `${ordered[index][0]} cannot exceed ${ordered[index - 1][0]}`,
+        });
+      }
+    }
+  });
+
+const projectSettingsSchema = z
+  .object({
+    expectedScale: z.enum(['small', 'medium', 'large', 'custom']),
+    expectedUsers: z.enum([
+      'under-100',
+      '100-1000',
+      '1000-100000',
+      'over-100000',
+      'custom',
+    ]),
+    expectedComplexity: z.enum(['low', 'medium', 'high', 'very-high']),
+    customScale: customScaleSchema.optional(),
+    simulationDefaults: z.object({
+      initialRps: nonNegative,
+      peakRps: nonNegative,
+      ambientFailureRate: z.number().finite().min(0).max(1),
+      durationSeconds: z.number().int().min(1).max(86_400),
+    }),
+    visibility: z.enum(['private', 'shared', 'public-template']),
+  })
+  .superRefine((settings, context) => {
+    if (settings.expectedScale === 'custom' && !settings.customScale) {
+      context.addIssue({
+        code: 'custom',
+        path: ['customScale'],
+        message: 'Custom scale requirements are required',
+      });
+    }
+    if (
+      settings.expectedUsers === 'custom' &&
+      settings.customScale?.registeredUsers === undefined
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['customScale', 'registeredUsers'],
+        message: 'A custom registered user count is required',
+      });
+    }
+  });
 
 const viewportSchema = z
   .object({
@@ -114,7 +198,11 @@ const viewportSchema = z
 
 type DocumentShape = {
   nodes: z.infer<typeof baseNodeSchema>[];
-  edges: z.infer<typeof edgeSchema>[];
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+  }>;
 };
 
 function validateGraph(document: DocumentShape, context: z.RefinementCtx) {
@@ -204,16 +292,29 @@ const legacyV11ArchitectureDocumentSchema = z
     metadata: metadataSchema,
     viewport: viewportSchema,
     nodes: z.array(currentNodeSchema),
-    edges: z.array(edgeSchema),
+    edges: z.array(legacyEdgeSchema),
   })
   .superRefine(validateGraph);
 
-export const architectureDocumentSchema = z
+const legacyV12ArchitectureDocumentSchema = z
   .object({
     schemaVersion: z.literal('1.2'),
     id: z.string().min(1),
     metadata: metadataSchema,
     viewport: viewportSchema,
+    nodes: z.array(currentNodeSchema),
+    edges: z.array(legacyEdgeSchema),
+    scenarios: z.array(simulationScenarioSchema),
+  })
+  .superRefine(validateGraph);
+
+export const architectureDocumentSchema = z
+  .object({
+    schemaVersion: z.literal('1.3'),
+    id: z.string().min(1),
+    metadata: metadataSchema,
+    viewport: viewportSchema,
+    projectSettings: projectSettingsSchema,
     nodes: z.array(currentNodeSchema),
     edges: z.array(edgeSchema),
     scenarios: z.array(simulationScenarioSchema),
@@ -297,7 +398,7 @@ const legacyArchitectureDocumentSchema = z
     metadata: metadataSchema,
     viewport: viewportSchema,
     nodes: z.array(baseNodeSchema),
-    edges: z.array(edgeSchema),
+    edges: z.array(legacyEdgeSchema),
   })
   .superRefine(validateGraph);
 
@@ -330,6 +431,24 @@ function migrateFromV11(
   };
 }
 
+function migrateFromV12(
+  document: z.infer<typeof legacyV12ArchitectureDocumentSchema>,
+) {
+  return {
+    ...document,
+    schemaVersion: '1.3' as const,
+    projectSettings: createDefaultProjectSettings(),
+    edges: document.edges.map((edge) => ({
+      ...edge,
+      config: { ...edge.config, disabled: false, monitored: false },
+    })),
+    scenarios: document.scenarios.map((scenario) => ({
+      ...scenario,
+      ambientFailureRate: scenario.ambientFailureRate ?? 0,
+    })),
+  };
+}
+
 export function parseArchitectureDocument(
   input: unknown,
 ): ArchitectureDocumentV1 {
@@ -342,18 +461,30 @@ export function parseArchitectureDocument(
     const migratedV11 = migrateFromV1(
       legacyArchitectureDocumentSchema.parse(input),
     );
-    const migrated = migrateFromV11(
+    const migratedV12 = migrateFromV11(
       legacyV11ArchitectureDocumentSchema.parse(migratedV11),
+    );
+    const migrated = migrateFromV12(
+      legacyV12ArchitectureDocumentSchema.parse(migratedV12),
     );
     return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
   }
   if (version === '1.1') {
-    const migrated = migrateFromV11(
+    const migratedV12 = migrateFromV11(
       legacyV11ArchitectureDocumentSchema.parse(input),
+    );
+    const migrated = migrateFromV12(
+      legacyV12ArchitectureDocumentSchema.parse(migratedV12),
     );
     return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
   }
   if (version === '1.2') {
+    const migrated = migrateFromV12(
+      legacyV12ArchitectureDocumentSchema.parse(input),
+    );
+    return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
+  }
+  if (version === '1.3') {
     return architectureDocumentSchema.parse(input) as ArchitectureDocumentV1;
   }
   throw new Error(

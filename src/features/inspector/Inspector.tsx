@@ -6,6 +6,7 @@ import type {
   OperationalConfig,
 } from '../../domain/architecture/types';
 import { componentDefinitionMap } from '../../domain/components/definitions';
+import { assessProject } from '../../domain/architecture/projectAssessment';
 import { useEditorStore } from '../canvas/editorStore';
 import {
   isSimulationLocked,
@@ -70,6 +71,7 @@ export function Inspector() {
   const [mode, setMode] = useState<'basic' | 'advanced'>('basic');
   const document = useEditorStore((state) => state.document);
   const selection = useEditorStore((state) => state.selection);
+  const select = useEditorStore((state) => state.select);
   const updateNodeTransient = useEditorStore(
     (state) => state.updateNodeTransient,
   );
@@ -81,6 +83,7 @@ export function Inspector() {
   const deleteSelection = useEditorStore((state) => state.deleteSelection);
   const simulationStatus = useSimulationStore((state) => state.status);
   const locked = isSimulationLocked(simulationStatus);
+  const projectFindings = assessProject(document);
 
   const node =
     selection?.kind === 'node'
@@ -121,6 +124,29 @@ export function Inspector() {
           <div className="hint-card">
             <span>Canvas guide</span>
             <p>Drag to move · Scroll to zoom · Drag a handle to connect</p>
+          </div>
+          <div className="project-assessment">
+            <span>Project requirements</span>
+            <p>
+              {document.projectSettings.expectedScale} scale ·{' '}
+              {document.projectSettings.expectedComplexity} complexity
+            </p>
+            {projectFindings.map((finding) => (
+              <button
+                key={finding.id}
+                type="button"
+                onClick={() =>
+                  finding.nodeId
+                    ? select({ kind: 'node', id: finding.nodeId })
+                    : finding.edgeId
+                      ? select({ kind: 'edge', id: finding.edgeId })
+                      : undefined
+                }
+              >
+                <strong>{finding.title}</strong>
+                <small>{finding.message}</small>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -417,6 +443,34 @@ export function Inspector() {
               onBlur={commitTransaction}
             />
             <span>Encrypted connection</span>
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={edge.config.monitored}
+              onFocus={beginTransaction}
+              onChange={(event) =>
+                updateEdgeTransient(edge.id, {
+                  config: { monitored: event.target.checked },
+                })
+              }
+              onBlur={commitTransaction}
+            />
+            <span>Monitored connection</span>
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={edge.config.disabled}
+              onFocus={beginTransaction}
+              onChange={(event) =>
+                updateEdgeTransient(edge.id, {
+                  config: { disabled: event.target.checked },
+                })
+              }
+              onBlur={commitTransaction}
+            />
+            <span>Disabled connection</span>
           </label>
           <button
             className="danger-button"
