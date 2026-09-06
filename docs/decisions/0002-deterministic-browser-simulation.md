@@ -14,7 +14,7 @@ Blue Garden must demonstrate how capacity, latency, queues, failures, caching, a
 - Run the pure engine in a native typed Web Worker and keep presentation speed independent of virtual results.
 - Treat synchronous branches as parallel required dependencies and stop originating response latency at asynchronous edges.
 - Model Cache misses, Sharding routing, and Message Queue delivery as explicit component rules.
-- Persist scenarios in architecture schema 1.2 and retain completed run summaries separately in IndexedDB.
+- Persist scenarios in the canonical architecture document (introduced in schema 1.2; current schema is 1.4) and retain completed run summaries and retained ticks separately in IndexedDB.
 - Label every result as an educational estimate derived from configured assumptions.
 
 ## Consequences
