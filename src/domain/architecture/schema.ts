@@ -30,6 +30,15 @@ const operationalConfigSchema = z
     shardCount: z.number().int().positive().optional(),
     shardKey: z.string().min(1).optional(),
     shardStrategy: z.enum(['hash', 'range', 'directory']).optional(),
+    ttlSeconds: z.number().int().min(1).max(86_400).optional(),
+    staleWindowSeconds: z.number().int().min(0).max(86_400).optional(),
+    ttlJitterPercent: z.number().finite().min(0).max(100).optional(),
+    requestCoalescing: z.boolean().optional(),
+    cacheLocking: z.boolean().optional(),
+    lockWaitTimeoutMs: z.number().int().min(0).max(60_000).optional(),
+    lockTtlMs: z.number().int().min(1).max(300_000).optional(),
+    backgroundRefresh: z.boolean().optional(),
+    workerRole: z.enum(['general', 'cache-refresh']).optional(),
   })
   .catchall(z.union([z.string(), z.number(), z.boolean(), z.undefined()]));
 
@@ -79,6 +88,39 @@ const currentNodeSchema = baseNodeSchema.superRefine((node, context) => {
     }
   }
 });
+
+const CACHE_DEFAULTS = {
+  ttlSeconds: 300,
+  staleWindowSeconds: 0,
+  ttlJitterPercent: 0,
+  requestCoalescing: false,
+  cacheLocking: false,
+  lockWaitTimeoutMs: 500,
+  lockTtlMs: 5000,
+  backgroundRefresh: false,
+} as const;
+
+function addDeepConfigDefaults(node: z.infer<typeof baseNodeSchema>) {
+  if (node.type === 'cache') {
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        config: { ...CACHE_DEFAULTS, ...node.data.config },
+      },
+    };
+  }
+  if (node.type === 'worker') {
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        config: { workerRole: 'general' as const, ...node.data.config },
+      },
+    };
+  }
+  return node;
+}
 
 const legacyEdgeSchema = z.object({
   id: z.string().min(1),
@@ -310,7 +352,7 @@ const legacyV12ArchitectureDocumentSchema = z
 
 export const architectureDocumentSchema = z
   .object({
-    schemaVersion: z.literal('1.3'),
+    schemaVersion: z.literal('1.4'),
     id: z.string().min(1),
     metadata: metadataSchema,
     viewport: viewportSchema,
@@ -321,6 +363,37 @@ export const architectureDocumentSchema = z
   })
   .superRefine((document, context) => {
     validateGraph(document, context);
+    for (const [index, node] of document.nodes.entries()) {
+      if (node.type === 'cache') {
+        const config = node.data.config;
+        for (const key of Object.keys(CACHE_DEFAULTS)) {
+          if (config[key] === undefined) {
+            context.addIssue({
+              code: 'custom',
+              message: `Cache nodes require ${key}`,
+              path: ['nodes', index, 'data', 'config', key],
+            });
+          }
+        }
+        if (
+          config.cacheLocking &&
+          Number(config.lockTtlMs) <= Number(config.lockWaitTimeoutMs)
+        ) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Cache lock TTL must exceed its wait timeout',
+            path: ['nodes', index, 'data', 'config', 'lockTtlMs'],
+          });
+        }
+      }
+      if (node.type === 'worker' && !node.data.config.workerRole) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Worker nodes require a worker role',
+          path: ['nodes', index, 'data', 'config', 'workerRole'],
+        });
+      }
+    }
     const nodeById = new Map(document.nodes.map((node) => [node.id, node]));
     const edgeIds = new Set(document.edges.map((edge) => edge.id));
     const scenarioIds = new Set<string>();
@@ -370,10 +443,14 @@ export const architectureDocumentSchema = z
               message: `Scenario event ${event.id} references a missing node`,
               path: ['scenarios'],
             });
-          } else if (event.type === 'CACHE_BYPASS' && node.type !== 'cache') {
+          } else if (
+            (event.type === 'CACHE_BYPASS' ||
+              event.type === 'CACHE_KEY_EXPIRATION') &&
+            node.type !== 'cache'
+          ) {
             context.addIssue({
               code: 'custom',
-              message: `Cache bypass event ${event.id} must target a Cache`,
+              message: `Cache event ${event.id} must target a Cache`,
               path: ['scenarios'],
             });
           } else if (
@@ -390,6 +467,19 @@ export const architectureDocumentSchema = z
       }
     }
   });
+
+const legacyV13ArchitectureDocumentSchema = z
+  .object({
+    schemaVersion: z.literal('1.3'),
+    id: z.string().min(1),
+    metadata: metadataSchema,
+    viewport: viewportSchema,
+    projectSettings: projectSettingsSchema,
+    nodes: z.array(currentNodeSchema),
+    edges: z.array(edgeSchema),
+    scenarios: z.array(simulationScenarioSchema),
+  })
+  .superRefine(validateGraph);
 
 const legacyArchitectureDocumentSchema = z
   .object({
@@ -449,6 +539,16 @@ function migrateFromV12(
   };
 }
 
+function migrateFromV13(
+  document: z.infer<typeof legacyV13ArchitectureDocumentSchema>,
+) {
+  return {
+    ...document,
+    schemaVersion: '1.4' as const,
+    nodes: document.nodes.map(addDeepConfigDefaults),
+  };
+}
+
 export function parseArchitectureDocument(
   input: unknown,
 ): ArchitectureDocumentV1 {
@@ -464,8 +564,11 @@ export function parseArchitectureDocument(
     const migratedV12 = migrateFromV11(
       legacyV11ArchitectureDocumentSchema.parse(migratedV11),
     );
-    const migrated = migrateFromV12(
+    const migratedV13 = migrateFromV12(
       legacyV12ArchitectureDocumentSchema.parse(migratedV12),
+    );
+    const migrated = migrateFromV13(
+      legacyV13ArchitectureDocumentSchema.parse(migratedV13),
     );
     return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
   }
@@ -473,18 +576,30 @@ export function parseArchitectureDocument(
     const migratedV12 = migrateFromV11(
       legacyV11ArchitectureDocumentSchema.parse(input),
     );
-    const migrated = migrateFromV12(
+    const migratedV13 = migrateFromV12(
       legacyV12ArchitectureDocumentSchema.parse(migratedV12),
+    );
+    const migrated = migrateFromV13(
+      legacyV13ArchitectureDocumentSchema.parse(migratedV13),
     );
     return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
   }
   if (version === '1.2') {
-    const migrated = migrateFromV12(
+    const migratedV13 = migrateFromV12(
       legacyV12ArchitectureDocumentSchema.parse(input),
+    );
+    const migrated = migrateFromV13(
+      legacyV13ArchitectureDocumentSchema.parse(migratedV13),
     );
     return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
   }
   if (version === '1.3') {
+    const migrated = migrateFromV13(
+      legacyV13ArchitectureDocumentSchema.parse(input),
+    );
+    return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
+  }
+  if (version === '1.4') {
     return architectureDocumentSchema.parse(input) as ArchitectureDocumentV1;
   }
   throw new Error(

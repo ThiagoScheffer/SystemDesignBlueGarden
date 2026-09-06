@@ -2,7 +2,11 @@ import type {
   ArchitectureDocumentV1,
   ComponentType,
 } from '../architecture/types';
-import type { GlobalMetric, SimulationScenario } from '../simulation/types';
+import type {
+  GlobalMetric,
+  SimulationScenario,
+  SimulationSummary,
+} from '../simulation/types';
 
 export type ChallengeLevel = 'beginner' | 'intermediate' | 'advanced';
 export type LearningMode = 'guided' | 'interview';
@@ -55,6 +59,15 @@ export type IncidentEventBlueprint =
       atSecond: number;
     }
   | {
+      type: 'CACHE_KEY_EXPIRATION';
+      componentType: 'cache';
+      keyCount: number;
+      affectedTrafficPercent: number;
+      rebuildDurationSeconds: number;
+      durationSeconds: number;
+      atSecond: number;
+    }
+  | {
       type: 'QUEUE_INJECT';
       componentType: 'message-queue';
       messages: number;
@@ -86,6 +99,88 @@ export interface ChallengeCriterion {
   minimum: number;
 }
 
+export type EvidenceState = 'observed' | 'partial' | 'not-represented';
+export type EvaluationRule =
+  | {
+      type: 'component-count';
+      componentTypes: ComponentType[];
+      minimum: number;
+    }
+  | {
+      type: 'active-path';
+      componentTypes: ComponentType[];
+    }
+  | {
+      type: 'config-enabled';
+      componentType: ComponentType;
+      keys: string[];
+      minimumEnabled: number;
+    }
+  | {
+      type: 'run-observation';
+      metric: LearningMetricKey;
+      operator: 'gt' | 'gte' | 'lt' | 'lte';
+      value: number;
+    }
+  | {
+      type: 'run-improvement';
+      metric: LearningMetricKey;
+      minimumPercent: number;
+    }
+  | { type: 'cache-lock-safety' }
+  | { type: 'cache-refresh-connection' };
+
+export interface RubricCriterionDefinition {
+  id: string;
+  label: string;
+  explanation: string;
+  rule: EvaluationRule;
+}
+
+export interface RubricDefinition {
+  id: string;
+  contentVersion: number;
+  criteria: RubricCriterionDefinition[];
+}
+
+export interface ConceptDefinition {
+  id: string;
+  contentVersion: number;
+  title: string;
+  summary: string;
+  componentTypes: ComponentType[];
+  sourceIds: string[];
+}
+
+export interface LessonDefinition {
+  id: string;
+  contentVersion: number;
+  title: string;
+  summary: string;
+  conceptIds: string[];
+  questionIds: string[];
+  tipIds: string[];
+}
+
+export interface LearningQuestion {
+  id: string;
+  prompt: string;
+  conceptIds: string[];
+}
+
+export interface LearningTipDefinition {
+  id: string;
+  title: string;
+  guidance: string;
+  conceptIds: string[];
+}
+
+export interface LearningSourceReference {
+  id: string;
+  title: string;
+  localPath: string;
+}
+
 export interface ChallengeDefinition {
   id: string;
   contentVersion: number;
@@ -102,6 +197,9 @@ export interface ChallengeDefinition {
   incident: IncidentBlueprint;
   criteria: ChallengeCriterion[];
   referenceTradeoffs: string[];
+  recommendedComponents?: ComponentType[];
+  lessonIds?: string[];
+  rubricId?: string;
 }
 
 export interface LearningTemplate {
@@ -126,9 +224,39 @@ export interface AttemptAnswers {
 export interface EvidenceObservation {
   criterionId: string;
   label: string;
-  userState: 'observed' | 'not-represented';
-  referenceState: 'observed' | 'not-represented';
+  userState: EvidenceState;
+  referenceState: EvidenceState;
   explanation: string;
+}
+
+export type LearningMetricKey =
+  | 'databasePeakOfferedRps'
+  | 'cachePeakOriginRps'
+  | 'cachePeakLockWaitRps'
+  | 'cacheTotalLockTimeouts'
+  | 'cacheTotalStaleResponses'
+  | 'cacheTotalCoalescedRequests'
+  | 'globalPeakP95LatencyMs'
+  | 'globalPeakErrorRate';
+
+export interface LearningRunMetrics {
+  databasePeakOfferedRps: number;
+  cachePeakOriginRps: number;
+  cachePeakLockWaitRps: number;
+  cacheTotalLockTimeouts: number;
+  cacheTotalStaleResponses: number;
+  cacheTotalCoalescedRequests: number;
+  globalPeakP95LatencyMs: number;
+  globalPeakErrorRate: number;
+}
+
+export interface LearningRunSnapshot {
+  id: string;
+  createdAt: string;
+  architecture: ArchitectureDocumentV1;
+  scenario: SimulationScenario;
+  summary: SimulationSummary;
+  metrics: LearningRunMetrics;
 }
 
 export interface ComparisonSnapshot {
@@ -143,6 +271,7 @@ export interface ComparisonSnapshot {
 }
 
 export interface ChallengeAttempt {
+  learningSchemaVersion?: 2;
   id: string;
   challengeId: string;
   challengeVersion: number;
@@ -161,6 +290,7 @@ export interface ChallengeAttempt {
   answers: AttemptAnswers;
   worksheet: CapacityWorksheet;
   comparison?: ComparisonSnapshot;
+  runSnapshots?: LearningRunSnapshot[];
 }
 
 export interface CompiledIncident {

@@ -10,6 +10,7 @@ import {
   getChallenge,
 } from '../../domain/learning/content';
 import { compileIncident } from '../../domain/learning/incidents';
+import { createLearningRunSnapshot } from '../../domain/learning/evaluation';
 import { calculateCapacity } from '../../domain/learning/worksheet';
 import type {
   AttemptAnswers,
@@ -48,6 +49,7 @@ function createAttempt(
   if (!challenge) throw new Error(`Unknown challenge: ${challengeId}`);
   const startedAt = new Date();
   return {
+    learningSchemaVersion: 2,
     id: `attempt-${crypto.randomUUID()}`,
     challengeId,
     challengeVersion: challenge.contentVersion,
@@ -68,6 +70,7 @@ function createAttempt(
     completedStepIds: mode === 'guided' ? ['understand'] : [],
     answers: emptyAnswers(),
     worksheet: structuredClone(challenge.worksheetDefaults),
+    runSnapshots: [],
   };
 }
 
@@ -83,6 +86,8 @@ export function useLearningController(
     (state) => state.applyLearningConfiguration,
   );
   const summary = useSimulationStore((state) => state.summary);
+  const simulationScenario = useSimulationStore((state) => state.scenario);
+  const simulationTicks = useSimulationStore((state) => state.ticks);
 
   useEffect(() => {
     let active = true;
@@ -132,16 +137,31 @@ export function useLearningController(
       !attempt ||
       attempt.status !== 'in-progress' ||
       !summary ||
-      summary.scenarioId !== attempt.incidentScenarioId ||
-      attempt.incidentRunCompleted
+      !simulationScenario ||
+      summary.architectureId !== document.id ||
+      attempt.runSnapshots?.some((run) => run.id === summary.runId)
     )
       return;
+    const incidentCompleted =
+      attempt.incidentRunCompleted ||
+      summary.scenarioId === attempt.incidentScenarioId;
     void persist({
       ...attempt,
-      incidentRunCompleted: true,
-      completedStepIds: [...new Set([...attempt.completedStepIds, 'incident'])],
+      runSnapshots: [
+        ...(attempt.runSnapshots ?? []),
+        createLearningRunSnapshot(
+          document,
+          simulationScenario,
+          summary,
+          simulationTicks,
+        ),
+      ],
+      incidentRunCompleted: incidentCompleted,
+      completedStepIds: incidentCompleted
+        ? [...new Set([...attempt.completedStepIds, 'incident'])]
+        : attempt.completedStepIds,
     });
-  }, [persist, summary]);
+  }, [document, persist, simulationScenario, simulationTicks, summary]);
 
   const switchProject = useCallback(
     async (next: ArchitectureDocumentV1) => {

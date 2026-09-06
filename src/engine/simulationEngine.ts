@@ -71,6 +71,9 @@ function logScenarioEvents(
       } else if (event.type === 'CACHE_BYPASS') {
         nodeId = event.nodeId;
         message = `${nodeById.get(nodeId)?.data.label ?? 'Cache'} entered bypass mode.`;
+      } else if (event.type === 'CACHE_KEY_EXPIRATION') {
+        nodeId = event.nodeId;
+        message = `${event.keyCount.toLocaleString()} cache ${event.keyCount === 1 ? 'key expired' : 'keys expired'}, affecting ${round(event.affectedTrafficPercent)}% of traffic.`;
       } else if (event.type === 'QUEUE_INJECT') {
         nodeId = event.nodeId;
         message = `${event.messages.toLocaleString()} messages were injected into ${nodeById.get(nodeId)?.data.label ?? 'the queue'}.`;
@@ -181,10 +184,14 @@ export function runSimulation(input: SimulationInput): EngineResult {
 
   const nodeById = new Map(input.nodes.map((node) => [node.id, node]));
   const outgoing = new Map<string, ArchitectureEdgeV1[]>();
+  const incomingEdges = new Map<string, ArchitectureEdgeV1[]>();
   for (const edge of activeEdges) {
     const list = outgoing.get(edge.source) ?? [];
     list.push(edge);
     outgoing.set(edge.source, list);
+    const incomingList = incomingEdges.get(edge.target) ?? [];
+    incomingList.push(edge);
+    incomingEdges.set(edge.target, incomingList);
   }
   const backlog = new Map<string, number>();
   const traffic = new Map(
@@ -330,9 +337,140 @@ export function runSimulation(input: SimulationInput): EngineResult {
         const hitRate = cacheBypass
           ? 0
           : (node.data.config.hitRatePercent ?? 80) / 100;
-        metric.cacheHitRps = round(successfulOutput * hitRate);
-        metric.cacheMissRps = round(successfulOutput * (1 - hitRate));
-        routable = successfulOutput * (1 - hitRate);
+        const baseMissRps = successfulOutput * (1 - hitRate);
+        const expiration = input.scenario.events.find(
+          (event) =>
+            event.type === 'CACHE_KEY_EXPIRATION' &&
+            event.nodeId === nodeId &&
+            isActive(second, event.atSecond, event.durationSeconds),
+        );
+        let forcedMissRps = 0;
+        let originRps = baseMissRps;
+        let coalescedRps = 0;
+        let lockWaitRps = 0;
+        let lockTimeoutRps = 0;
+        let staleServedRps = 0;
+        let refreshRps = 0;
+        let refreshFailureRps = 0;
+
+        if (expiration?.type === 'CACHE_KEY_EXPIRATION' && !cacheBypass) {
+          const age = second - expiration.atSecond;
+          const jitterWindow =
+            expiration.keyCount > 1
+              ? Math.max(
+                  1,
+                  Math.min(
+                    expiration.keyCount,
+                    Math.ceil(
+                      (node.data.config.ttlSeconds ?? 300) *
+                        ((node.data.config.ttlJitterPercent ?? 0) / 100),
+                    ),
+                  ),
+                )
+              : 1;
+          forcedMissRps =
+            (successfulOutput *
+              hitRate *
+              (expiration.affectedTrafficPercent / 100)) /
+            jitterWindow;
+          const batchKeys = Math.max(1, expiration.keyCount / jitterWindow);
+          const newBatch =
+            expiration.keyCount === 1 ? age === 0 : age < jitterWindow;
+          const refreshWorkers = input.nodes.filter(
+            (candidate) =>
+              candidate.type === 'worker' &&
+              candidate.data.config.workerRole === 'cache-refresh' &&
+              [
+                ...(incomingEdges.get(nodeId) ?? []),
+                ...(outgoing.get(nodeId) ?? []),
+              ].some(
+                (edge) =>
+                  edge.source === candidate.id || edge.target === candidate.id,
+              ),
+          );
+          const activeRefreshWorkers = refreshWorkers.filter(
+            (worker) =>
+              !input.scenario.events.some(
+                (event) =>
+                  event.type === 'NODE_FAILURE' &&
+                  event.nodeId === worker.id &&
+                  isActive(second, event.atSecond, event.durationSeconds),
+              ),
+          );
+          const refreshEnabled = Boolean(node.data.config.backgroundRefresh);
+          const preRefreshed =
+            refreshEnabled && activeRefreshWorkers.length > 0;
+          if (preRefreshed) {
+            refreshRps = newBatch ? batchKeys : 0;
+            originRps += refreshRps;
+            forcedMissRps = 0;
+          } else {
+            if (refreshEnabled && refreshWorkers.length > 0) {
+              refreshFailureRps = forcedMissRps;
+            }
+            const staleAvailable =
+              (node.data.config.staleWindowSeconds ?? 0) > age;
+            const lockTtlMs = node.data.config.lockTtlMs ?? 5000;
+            const lockExpired =
+              Boolean(node.data.config.cacheLocking) &&
+              age > 0 &&
+              (age * 1000) % lockTtlMs < 1000;
+            const upstreamApplications = Math.max(
+              1,
+              (incomingEdges.get(nodeId) ?? []).filter(
+                (edge) =>
+                  nodeById.get(edge.source)?.type === 'application-server',
+              ).length,
+            );
+            let rebuildRps = forcedMissRps;
+            if (node.data.config.cacheLocking) {
+              rebuildRps = newBatch || lockExpired ? batchKeys : 0;
+              lockWaitRps = Math.max(0, forcedMissRps - rebuildRps);
+            } else if (node.data.config.requestCoalescing) {
+              rebuildRps = newBatch ? batchKeys * upstreamApplications : 0;
+              coalescedRps = Math.max(0, forcedMissRps - rebuildRps);
+            } else if (staleAvailable) {
+              rebuildRps = newBatch ? batchKeys : 0;
+            }
+            if (staleAvailable) {
+              staleServedRps = forcedMissRps;
+              lockWaitRps = 0;
+              coalescedRps = Math.max(coalescedRps, forcedMissRps - rebuildRps);
+            } else if (
+              node.data.config.cacheLocking &&
+              expiration.rebuildDurationSeconds * 1000 >
+                (node.data.config.lockWaitTimeoutMs ?? 500)
+            ) {
+              lockTimeoutRps = lockWaitRps;
+            }
+            refreshRps = rebuildRps;
+            originRps += rebuildRps;
+          }
+          metric.cacheRebuildLatencyMs =
+            expiration.rebuildDurationSeconds * 1000;
+          if (coalescedRps > 0 || lockWaitRps > 0) {
+            metric.averageLatencyMs = round(
+              metric.averageLatencyMs + expiration.rebuildDurationSeconds * 500,
+            );
+            metric.p95LatencyMs = round(
+              metric.p95LatencyMs + expiration.rebuildDurationSeconds * 1000,
+            );
+          }
+        }
+
+        metric.cacheHitRps = round(
+          Math.max(0, successfulOutput - baseMissRps - forcedMissRps),
+        );
+        metric.cacheMissRps = round(baseMissRps + forcedMissRps);
+        metric.cacheOriginRps = round(originRps);
+        metric.coalescedRps = round(coalescedRps);
+        metric.lockWaitRps = round(lockWaitRps);
+        metric.lockTimeoutRps = round(lockTimeoutRps);
+        metric.staleServedRps = round(staleServedRps);
+        metric.refreshRps = round(refreshRps);
+        metric.refreshFailureRps = round(refreshFailureRps);
+        metric.failedRps = round(metric.failedRps + lockTimeoutRps);
+        routable = originRps;
       }
       const normalized =
         node.type === 'sharding' || node.type === 'message-queue';
@@ -511,7 +649,14 @@ export function runSimulation(input: SimulationInput): EngineResult {
           const child = evaluate(edge.target);
           let probability = edge.config.trafficPercentage / 100;
           if (node.type === 'cache') {
-            probability *= 1 - (node.data.config.hitRatePercent ?? 80) / 100;
+            probability *=
+              metric.processedRps > 0
+                ? Math.min(
+                    1,
+                    (metric.cacheOriginRps ?? metric.cacheMissRps ?? 0) /
+                      metric.processedRps,
+                  )
+                : 0;
           }
           success *= 1 - probability + probability * child.success;
           childAverage = Math.max(
@@ -527,7 +672,16 @@ export function runSimulation(input: SimulationInput): EngineResult {
         }
       }
       const result = {
-        success: Math.min(1, Math.max(0, success)),
+        success: Math.min(
+          1,
+          Math.max(
+            0,
+            success *
+              (metric.processedRps > 0
+                ? 1 - (metric.lockTimeoutRps ?? 0) / metric.processedRps
+                : 1),
+          ),
+        ),
         averageLatency: metric.averageLatencyMs + childAverage,
         p95Latency: metric.p95LatencyMs + childP95,
       };

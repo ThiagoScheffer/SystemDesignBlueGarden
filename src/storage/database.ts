@@ -5,6 +5,7 @@ import type {
   SimulationTick,
 } from '../domain/simulation/types';
 import type { ChallengeAttempt } from '../domain/learning/types';
+import { normalizeChallengeAttempt } from '../domain/learning/attempts';
 
 export interface StoredProject {
   id: string;
@@ -42,6 +43,22 @@ class BlueGardenDatabase extends Dexie {
       trainingAttempts:
         'id, challengeId, architectureId, status, updatedAt, [challengeId+updatedAt]',
     });
+    this.version(4)
+      .stores({
+        projects: 'id, updatedAt',
+        simulationRuns:
+          'runId, architectureId, completedAt, [architectureId+completedAt]',
+        trainingAttempts:
+          'id, challengeId, architectureId, status, updatedAt, [challengeId+updatedAt]',
+      })
+      .upgrade((transaction) =>
+        transaction
+          .table<ChallengeAttempt>('trainingAttempts')
+          .toCollection()
+          .modify((attempt) => {
+            Object.assign(attempt, normalizeChallengeAttempt(attempt));
+          }),
+      );
   }
 }
 
@@ -68,14 +85,14 @@ export async function deleteProject(id: string) {
 }
 
 export async function saveTrainingAttempt(attempt: ChallengeAttempt) {
-  await database.trainingAttempts.put(structuredClone(attempt));
+  await database.trainingAttempts.put(normalizeChallengeAttempt(attempt));
 }
 
 export async function loadTrainingAttempts() {
   const attempts = await database.trainingAttempts
     .orderBy('updatedAt')
     .toArray();
-  return attempts.reverse();
+  return attempts.reverse().map(normalizeChallengeAttempt);
 }
 
 export async function deleteTrainingAttempt(id: string) {

@@ -33,6 +33,15 @@ export const scenarioEventSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     ...eventBase,
+    type: z.literal('CACHE_KEY_EXPIRATION'),
+    nodeId: z.string().min(1),
+    keyCount: z.number().int().positive(),
+    affectedTrafficPercent: z.number().finite().min(0).max(100),
+    rebuildDurationSeconds: z.number().int().positive(),
+    durationSeconds: z.number().int().positive(),
+  }),
+  z.object({
+    ...eventBase,
     type: z.literal('QUEUE_INJECT'),
     nodeId: z.string().min(1),
     messages: z.number().finite().nonnegative(),

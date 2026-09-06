@@ -118,6 +118,26 @@ export function buildNodeDiagnostics(
     }
   }
 
+  if ((metric.lockTimeoutRps ?? 0) > 0) {
+    const timeoutPercent = percent(
+      metric.lockTimeoutRps ?? 0,
+      metric.offeredRps,
+    );
+    result.push(
+      diagnostic(
+        `${node.id}-lock-timeouts`,
+        'timeout',
+        'cache',
+        'error',
+        'critical',
+        'Cache rebuild wait timed out',
+        `${displayPercent(timeoutPercent)}% of requests exceeded the cache lock wait timeout.`,
+        metric.lockTimeoutRps ?? 0,
+        timeoutPercent,
+      ),
+    );
+  }
+
   if (loadPercent !== null && loadPercent >= 80) {
     result.push(
       diagnostic(
@@ -188,6 +208,67 @@ export function buildNodeDiagnostics(
         `${displayPercent(missPercent)}% of reads continue to the backing store.`,
         metric.cacheMissRps,
         missPercent,
+      ),
+    );
+  }
+
+  if (
+    node.type === 'cache' &&
+    (metric.cacheOriginRps ?? 0) > 0 &&
+    (metric.cacheMissRps ?? 0) > (metric.processedRps || 1) * 0.5
+  ) {
+    const originPercent = percent(
+      metric.cacheOriginRps ?? 0,
+      metric.processedRps,
+    );
+    result.push(
+      diagnostic(
+        `${node.id}-cache-stampede`,
+        'cache-stampede',
+        'cache',
+        'bottleneck',
+        originPercent >= 80 ? 'critical' : 'warning',
+        'Cache stampede',
+        `${displayPercent(originPercent)}% of cache traffic is reaching the backing store during rebuild.`,
+        metric.cacheOriginRps ?? 0,
+        originPercent,
+      ),
+    );
+  }
+
+  if (
+    node.type === 'cache' &&
+    (metric.cacheOriginRps ?? 0) > (metric.offeredRps || 1) * 0.25
+  ) {
+    result.push(
+      diagnostic(
+        `${node.id}-origin-amplification`,
+        'origin-amplification',
+        'cache',
+        'bottleneck',
+        (metric.cacheOriginRps ?? 0) >= metric.offeredRps * 0.8
+          ? 'critical'
+          : 'warning',
+        'Origin load amplification',
+        `${round(metric.cacheOriginRps ?? 0).toLocaleString()} requests/second continue to the backing store.`,
+        metric.cacheOriginRps ?? 0,
+        percent(metric.cacheOriginRps ?? 0, metric.offeredRps),
+      ),
+    );
+  }
+
+  if (node.type === 'cache' && (metric.lockWaitRps ?? 0) > 0) {
+    result.push(
+      diagnostic(
+        `${node.id}-lock-contention`,
+        'lock-contention',
+        'cache',
+        'bottleneck',
+        (metric.lockTimeoutRps ?? 0) > 0 ? 'critical' : 'warning',
+        'Cache lock contention',
+        `${round(metric.lockWaitRps ?? 0).toLocaleString()} requests/second are waiting for a cache rebuild${(metric.lockTimeoutRps ?? 0) > 0 ? ' and exceeding the configured wait timeout' : ''}.`,
+        metric.lockWaitRps ?? 0,
+        percent(metric.lockWaitRps ?? 0, metric.offeredRps),
       ),
     );
   }

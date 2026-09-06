@@ -48,4 +48,32 @@ describe('simulation scenario schema', () => {
 
     expect(() => simulationScenarioSchema.parse(scenario)).toThrow();
   });
+
+  it('validates cache-key expiration parameters', () => {
+    const scenario = {
+      id: 'cache-expiry',
+      name: 'Popular key expiration',
+      durationSeconds: 20,
+      traffic: [{ sourceNodeId: 'client', requestsPerSecond: 1000 }],
+      events: [
+        {
+          id: 'expiry',
+          type: 'CACHE_KEY_EXPIRATION',
+          atSecond: 5,
+          nodeId: 'cache',
+          keyCount: 1,
+          affectedTrafficPercent: 90,
+          rebuildDurationSeconds: 5,
+          durationSeconds: 5,
+        },
+      ],
+    };
+    expect(simulationScenarioSchema.parse(scenario)).toBeDefined();
+    expect(() =>
+      simulationScenarioSchema.parse({
+        ...scenario,
+        events: [{ ...scenario.events[0], affectedTrafficPercent: 101 }],
+      }),
+    ).toThrow();
+  });
 });

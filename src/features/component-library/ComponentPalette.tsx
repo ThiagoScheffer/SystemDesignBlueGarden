@@ -8,6 +8,7 @@ import {
   isSimulationLocked,
   useSimulationStore,
 } from '../simulation/simulationStore';
+import { useLearningStore } from '../learning/learningStore';
 
 const categories = [
   'Client & edge',
@@ -23,6 +24,10 @@ export function ComponentPalette() {
   const addNode = useEditorStore((state) => state.addNode);
   const status = useSimulationStore((state) => state.status);
   const locked = isSimulationLocked(status);
+  const activeAttempt = useLearningStore((state) => state.activeAttempt);
+  const recommended = new Set(
+    activeAttempt?.challengeSnapshot.recommendedComponents ?? [],
+  );
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return componentDefinitions;
@@ -74,7 +79,7 @@ export function ComponentPalette() {
                   return (
                     <button
                       type="button"
-                      className="component-item"
+                      className={`component-item ${recommended.has(definition.type) ? 'is-recommended' : ''}`}
                       key={definition.type}
                       draggable
                       disabled={locked}
@@ -93,6 +98,9 @@ export function ComponentPalette() {
                         <Icon aria-hidden="true" size={17} />
                       </span>
                       <span>{definition.label}</span>
+                      {recommended.has(definition.type) && (
+                        <small>Recommended</small>
+                      )}
                     </button>
                   );
                 })}

@@ -8,14 +8,17 @@ import {
 } from './content';
 import { compileIncident } from './incidents';
 import { calculateCapacity, validateWorksheet } from './worksheet';
+import { learningRegistry, learningRubrics } from './structuredContent';
+import { evaluateRubric } from './evaluation';
+import { normalizeChallengeAttempt } from './attempts';
 
 describe('Phase 3 learning domain', () => {
-  it('publishes five unique, versioned challenges and templates', () => {
-    expect(challenges).toHaveLength(5);
-    expect(learningTemplates).toHaveLength(5);
-    expect(new Set(challenges.map((challenge) => challenge.id)).size).toBe(5);
+  it('publishes six unique, versioned challenges and templates', () => {
+    expect(challenges).toHaveLength(6);
+    expect(learningTemplates).toHaveLength(6);
+    expect(new Set(challenges.map((challenge) => challenge.id)).size).toBe(6);
     expect(new Set(learningTemplates.map((template) => template.id)).size).toBe(
-      5,
+      6,
     );
     expect(
       challenges.every(
@@ -60,7 +63,7 @@ describe('Phase 3 learning domain', () => {
   });
 
   it('compiles hidden incidents by semantic role without mutating the architecture', () => {
-    const challenge = challenges[0];
+    const challenge = challenges.find((entry) => entry.id === 'url-shortener')!;
     const document = createTemplateDocument(challenge.id);
     const before = structuredClone(document);
     const result = compileIncident(challenge.incident, document);
@@ -93,7 +96,7 @@ describe('Phase 3 learning domain', () => {
   });
 
   it('uses neutral evidence states and never emits a score', () => {
-    const challenge = challenges[0];
+    const challenge = challenges.find((entry) => entry.id === 'url-shortener')!;
     const user = createTemplateDocument(challenge.id);
     const reference = createTemplateDocument(challenge.id, true);
     const evidence = collectEvidence(challenge, user, reference);
@@ -121,5 +124,65 @@ describe('Phase 3 learning domain', () => {
     );
     expect(aligned.traffic[0].requestsPerSecond).toBe(12_345);
     expect(aligned.ambientFailureRate).toBe(0.03);
+  });
+
+  it('validates the structured registry and cache-stampede cross references', () => {
+    const challenge = challenges.find((entry) => entry.id === 'cache-stampede');
+    expect(challenge).toMatchObject({
+      rubricId: 'cache-stampede-rubric',
+      lessonIds: ['prevent-cache-stampede'],
+    });
+    expect(learningRegistry.challenges).toHaveLength(6);
+    expect(learningRegistry.concepts.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('evaluates cache-stampede evidence without a score', () => {
+    const document = createTemplateDocument('cache-stampede');
+    const rubric = learningRubrics[0];
+    const before = evaluateRubric(rubric, document, []);
+    expect(before).toContainEqual(
+      expect.objectContaining({
+        criterionId: 'cache-request-path',
+        state: 'observed',
+      }),
+    );
+    expect(before).toContainEqual(
+      expect.objectContaining({
+        criterionId: 'duplicate-rebuild-protection',
+        state: 'not-represented',
+      }),
+    );
+    expect(JSON.stringify(before)).not.toMatch(/score|pass|fail/i);
+  });
+
+  it('normalizes legacy attempts without rewriting their challenge snapshot', () => {
+    const challenge = challenges.find((entry) => entry.id === 'url-shortener')!;
+    const legacy = {
+      id: 'attempt-legacy',
+      challengeId: challenge.id,
+      challengeVersion: challenge.contentVersion,
+      challengeSnapshot: structuredClone(challenge),
+      architectureId: 'architecture-legacy',
+      mode: 'guided' as const,
+      status: 'in-progress' as const,
+      startedAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      revealedIncident: false,
+      incidentRunCompleted: false,
+      completedStepIds: [],
+      answers: {
+        clarifyingQuestions: '',
+        functionalRequirements: '',
+        nonFunctionalRequirements: '',
+        dataAndApiDecisions: '',
+        bottlenecksAndTradeoffs: '',
+      },
+      worksheet: structuredClone(challenge.worksheetDefaults),
+    };
+    const normalized = normalizeChallengeAttempt(legacy);
+    expect(normalized.learningSchemaVersion).toBe(2);
+    expect(normalized.runSnapshots).toEqual([]);
+    expect(normalized.challengeSnapshot).toEqual(legacy.challengeSnapshot);
+    expect(normalized.challengeSnapshot).not.toBe(legacy.challengeSnapshot);
   });
 });

@@ -13,13 +13,14 @@ This document is a simple snapshot of the implemented application. Use it as the
 The application is functional as a local desktop-oriented web application. Its main editor, persistence, import/export, project configuration, simulation, diagnostics, and learning guidance are implemented.
 
 - Current application version: `0.1.0`
-- Current architecture document schema: `1.3`
+- Current architecture document schema: `1.4`
 - Runtime: client-side React application
 - Backend and user accounts: not implemented
 - Project sharing visibility is metadata only; it does not publish a project
 - Editing is locked while a simulation is running or paused
 - The interface expects a desktop or wide browser viewport
-- A local Learning Studio provides five templates and five guided/interview challenges
+- A local Learning Studio provides six templates and six guided/interview challenges
+- Structured registries validate learning concepts, lessons, rubrics, questions, tips, and local source references
 
 ## Technology Stack
 
@@ -77,6 +78,8 @@ Every component definition includes a label, category, icon, color, description,
 Special component configuration includes:
 
 - Cache hit-rate percentage, defaulting to 80%.
+- Cache TTL, stale window, TTL jitter, request coalescing, distributed locking, lock bounds, and background refresh.
+- Worker role selection for general or cache-refresh work.
 - Sharding count, shard key, and hash/range/directory strategy.
 - Note type and content.
 - Per-node implementation notes.
@@ -141,8 +144,9 @@ Supported scenario events:
 - Cache bypass.
 - Queue message injection.
 - Temporary edge latency.
+- Cache-key expiration with key count, affected traffic, and rebuild duration.
 
-The model currently calculates traffic, capacity, utilization, uncapped load ratio, queue depth, rejection, processing failures, retries, timeouts, average and P95 latency, cache hits/misses, shard routing, throughput, error rate, and estimated monthly cost.
+The model currently calculates traffic, capacity, utilization, uncapped load ratio, queue depth, rejection, processing failures, retries, timeouts, average and P95 latency, cache hits/misses, cache-origin amplification, coalesced requests, lock waits/timeouts, stale responses, refresh traffic, shard routing, throughput, error rate, and estimated monthly cost.
 
 Ambient and component failure probabilities are combined independently. Disabled connections carry no simulated traffic.
 
@@ -160,12 +164,15 @@ Ambient and component failure probabilities are combined independently. Disabled
 
 ## Learning Studio
 
-- Challenges: URL Shortener, Rate Limiter, News Feed, File Storage, and E-commerce Checkout.
+- Challenges: Cache Stampede, URL Shortener, Rate Limiter, News Feed, File Storage, and E-commerce Checkout.
 - Each challenge supports Guided and Interview modes using a separate architecture project.
 - Guided mode provides an 11-step workflow and hints; Interview mode uses a 30, 45, or 60-minute soft countdown.
 - Capacity worksheets estimate average/peak RPS, read/write traffic, retained storage, and monthly traffic.
 - Worksheet results change project requirements or scenarios only through explicit apply actions.
 - Hidden incidents target semantic component roles rather than template-specific IDs.
+- The Cache Stampede Lab models origin amplification, coalescing, locking, stale serving, jitter, and refresh-worker availability.
+- Attempt runs retain architecture, scenario, summary, and cache/database evidence for before/after comparison.
+- The Inspector includes contextual Learning guidance and the component library highlights challenge recommendations.
 - Attempts, answers, timer deadlines, incident state, and immutable submitted comparisons persist in IndexedDB.
 - Completed attempts compare the submitted and reference designs using the same canonical incident, neutral topology evidence, and simulation metrics. No score or pass/fail judgment is produced.
 
@@ -173,7 +180,8 @@ Ambient and component failure probabilities are combined independently. Disabled
 
 The canonical `ArchitectureDocumentV1` contains metadata, project settings, nodes, edges, viewport data, and saved scenarios. It is independent of React Flow UI state.
 
-- Schema versions `1.0`, `1.1`, and `1.2` migrate to `1.3` during import or IndexedDB loading.
+- Schema versions `1.0` through `1.3` migrate to `1.4` during import or IndexedDB loading.
+- Schema `1.4` adds deep Cache configuration and Worker roles with inactive migration defaults.
 - Unknown or malformed versions are rejected without replacing the active design.
 - Simulation UI state, open cards, diagnostics, and completed results are not exported in architecture JSON.
 - Completed simulation runs are stored separately in IndexedDB.
@@ -207,7 +215,7 @@ The following areas are not yet complete or are suitable candidates for future p
 - Complete Region containment editing and interaction.
 - Full project-management screen for browsing, renaming, duplicating, or deleting saved projects.
 - Backend accounts, collaboration, permissions, and real publishing.
-- Additional learning content beyond the initial five challenge/template packs.
+- Additional learning content beyond the current six challenge/template packs.
 - Mobile editor layout.
 - More extensive Playwright coverage for the newer Project Settings and connection-menu workflows.
 - Production-grade performance profiling for very large diagrams.

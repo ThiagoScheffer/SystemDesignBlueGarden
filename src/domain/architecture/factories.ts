@@ -14,7 +14,7 @@ export function createArchitectureDocument(
 ): ArchitectureDocumentV1 {
   const now = new Date().toISOString();
   return {
-    schemaVersion: '1.3',
+    schemaVersion: '1.4',
     id: makeId('architecture'),
     metadata: { name, createdAt: now, updatedAt: now },
     viewport: { x: 0, y: 0, zoom: 1 },

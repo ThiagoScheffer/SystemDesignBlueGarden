@@ -28,7 +28,8 @@ The first editor foundation includes:
 - Advisory architecture assessment driven by project requirements.
 - Port and connection context menus with disconnect, reverse, duplicate, label, monitoring, disable, and endpoint reconnection operations.
 - Disabled-path simulation exclusion and independently combined ambient failure probability.
-- Local Learning Studio with five editable templates and five guided/interview challenges.
+- Local Learning Studio with six editable templates and six guided/interview challenges, including the Cache Stampede Lab.
+- Structured learning registries and persisted, score-free before/after run evidence.
 - Capacity-estimation worksheets, soft interview timers, semantic hidden incidents, and resumable attempt history.
 - Neutral evidence comparison between submitted and curated reference architectures without scoring.
 
@@ -67,9 +68,9 @@ npm run format:check
 
 ## Architecture format
 
-The canonical document is independent of React Flow. Its current schema version is `1.3`, defined in `src/domain/architecture/schema.ts`, and its TypeScript contract is in `src/domain/architecture/types.ts`.
+The canonical document is independent of React Flow. Its current schema version is `1.4`, defined in `src/domain/architecture/schema.ts`, and its TypeScript contract is in `src/domain/architecture/types.ts`.
 
-Schema `1.0`, `1.1`, and `1.2` files and IndexedDB projects are validated and migrated to `1.3` when loaded. Schema 1.3 adds project requirements, simulation defaults, visibility metadata, connection state flags, and ambient scenario failure. Completed run results remain in IndexedDB rather than architecture JSON. Unknown versions are rejected before the active design is replaced.
+Schema `1.0` through `1.3` files and IndexedDB projects are validated and migrated to `1.4` when loaded. Schema 1.4 adds explicit Cache Stampede configuration and cache-refresh Worker roles. Completed run results remain in IndexedDB rather than architecture JSON. Unknown versions are rejected before the active design is replaced.
 
 ## Simulator
 
@@ -78,6 +79,8 @@ Configure a scenario from the top bar, then run it against an immutable architec
 ## Component education
 
 Hover over any canvas component for one second to see its description and a small example. Double-click it, or select it and press `I`, to open the full information card below the node. Cache cards include a persisted hit-rate control, and every component card accepts Markdown-compatible implementation notes.
+
+During a learning attempt, recommended components are highlighted in the library. The Inspector Learning tab shows contextual concepts, questions, and deterministic evidence. Cache nodes expose TTL, stale-window, jitter, coalescing, locking, and background-refresh settings; Workers can be assigned the Cache refresh role.
 
 ## Product documents
 

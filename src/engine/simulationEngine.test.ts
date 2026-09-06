@@ -270,6 +270,116 @@ describe('deterministic simulation engine', () => {
     expect(result.ticks[0].nodes[database.id].incomingRps).toBe(200);
   });
 
+  it('models an unprotected popular-key expiration and origin amplification', () => {
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const app = createArchitectureNode('application-server', { x: 100, y: 0 });
+    const cache = createArchitectureNode('cache', { x: 200, y: 0 });
+    const database = createArchitectureNode('sql-database', { x: 300, y: 0 });
+    for (const node of [client, app, cache, database]) {
+      node.data.config.failureRate = 0;
+      node.data.config.capacity = 50_000;
+    }
+    const edges = [
+      createArchitectureEdge(client.id, app.id),
+      createArchitectureEdge(app.id, cache.id),
+      createArchitectureEdge(cache.id, database.id),
+    ];
+    const testScenario = scenario(client.id, 1000);
+    testScenario.events = [
+      {
+        id: 'popular-expiry',
+        type: 'CACHE_KEY_EXPIRATION',
+        nodeId: cache.id,
+        atSecond: 1,
+        durationSeconds: 5,
+        keyCount: 1,
+        affectedTrafficPercent: 90,
+        rebuildDurationSeconds: 5,
+      },
+    ];
+
+    const tick = runSimulation(
+      input([client, app, cache, database], edges, testScenario),
+    ).ticks[1];
+
+    expect(tick.nodes[cache.id].cacheOriginRps).toBe(920);
+    expect(tick.nodes[database.id].incomingRps).toBe(920);
+    expect(tick.nodes[cache.id].diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'cache-stampede' }),
+    );
+  });
+
+  it('coalesces duplicate rebuilds and serves stale data without lock timeouts', () => {
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const app = createArchitectureNode('application-server', { x: 100, y: 0 });
+    const cache = createArchitectureNode('cache', { x: 200, y: 0 });
+    const database = createArchitectureNode('sql-database', { x: 300, y: 0 });
+    for (const node of [client, app, cache, database]) {
+      node.data.config.failureRate = 0;
+      node.data.config.capacity = 50_000;
+    }
+    cache.data.config.cacheLocking = true;
+    cache.data.config.staleWindowSeconds = 30;
+    const edges = [
+      createArchitectureEdge(client.id, app.id),
+      createArchitectureEdge(app.id, cache.id),
+      createArchitectureEdge(cache.id, database.id),
+    ];
+    const testScenario = scenario(client.id, 1000);
+    testScenario.events = [
+      {
+        id: 'popular-expiry',
+        type: 'CACHE_KEY_EXPIRATION',
+        nodeId: cache.id,
+        atSecond: 1,
+        durationSeconds: 5,
+        keyCount: 1,
+        affectedTrafficPercent: 90,
+        rebuildDurationSeconds: 5,
+      },
+    ];
+
+    const metric = runSimulation(
+      input([client, app, cache, database], edges, testScenario),
+    ).ticks[1].nodes[cache.id];
+
+    expect(metric.cacheOriginRps).toBe(201);
+    expect(metric.staleServedRps).toBe(720);
+    expect(metric.lockTimeoutRps).toBe(0);
+  });
+
+  it('uses TTL jitter only to spread multi-key expiration', () => {
+    const client = createArchitectureNode('client', { x: 0, y: 0 });
+    const cache = createArchitectureNode('cache', { x: 100, y: 0 });
+    const database = createArchitectureNode('sql-database', { x: 200, y: 0 });
+    for (const node of [client, cache, database]) {
+      node.data.config.failureRate = 0;
+      node.data.config.capacity = 50_000;
+    }
+    cache.data.config.ttlJitterPercent = 10;
+    const edges = [
+      createArchitectureEdge(client.id, cache.id),
+      createArchitectureEdge(cache.id, database.id),
+    ];
+    const testScenario = scenario(client.id, 1000);
+    testScenario.events = [
+      {
+        id: 'many-expiries',
+        type: 'CACHE_KEY_EXPIRATION',
+        nodeId: cache.id,
+        atSecond: 1,
+        durationSeconds: 5,
+        keyCount: 10,
+        affectedTrafficPercent: 90,
+        rebuildDurationSeconds: 1,
+      },
+    ];
+    const metric = runSimulation(
+      input([client, cache, database], edges, testScenario),
+    ).ticks[1].nodes[cache.id];
+    expect(metric.cacheOriginRps).toBe(272);
+  });
+
   it('diagnoses cache miss amplification during bypass', () => {
     const client = createArchitectureNode('client', { x: 0, y: 0 });
     const cache = createArchitectureNode('cache', { x: 100, y: 0 });

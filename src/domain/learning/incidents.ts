@@ -85,6 +85,17 @@ export function compileIncident(
         nodeId: node.id,
         durationSeconds: event.durationSeconds,
       });
+    if (event.type === 'CACHE_KEY_EXPIRATION')
+      events.push({
+        id,
+        type: event.type,
+        atSecond: event.atSecond,
+        nodeId: node.id,
+        keyCount: event.keyCount,
+        affectedTrafficPercent: event.affectedTrafficPercent,
+        rebuildDurationSeconds: event.rebuildDurationSeconds,
+        durationSeconds: event.durationSeconds,
+      });
     if (event.type === 'QUEUE_INJECT')
       events.push({
         id,

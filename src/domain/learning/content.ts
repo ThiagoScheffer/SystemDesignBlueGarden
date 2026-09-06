@@ -14,10 +14,67 @@ type TemplateSpec = {
   edges: Array<[number, number, ('sync' | 'async')?]>;
 };
 
+const learningContentOrder = [
+  'url-shortener',
+  'rate-limiter',
+  'news-feed',
+  'file-storage',
+  'ecommerce-checkout',
+  'cache-stampede',
+] as const;
+const byLearningOrder = (left: { id: string }, right: { id: string }) =>
+  learningContentOrder.indexOf(
+    left.id as (typeof learningContentOrder)[number],
+  ) -
+  learningContentOrder.indexOf(
+    right.id as (typeof learningContentOrder)[number],
+  );
+
 const templateSpecs: Record<
   string,
   { starter: TemplateSpec; reference: TemplateSpec }
 > = {
+  'cache-stampede': {
+    starter: {
+      nodes: [
+        { type: 'client', x: 0, y: 120 },
+        { type: 'load-balancer', x: 180, y: 120 },
+        { type: 'application-server', x: 370, y: 120 },
+        { type: 'cache', label: 'Product cache', x: 570, y: 70 },
+        { type: 'sql-database', label: 'Product database', x: 770, y: 70 },
+        { type: 'worker', label: 'Refresh worker', x: 570, y: 240 },
+        { type: 'monitoring-service', x: 770, y: 240 },
+      ],
+      edges: [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 4],
+        [5, 3, 'async'],
+      ],
+    },
+    reference: {
+      nodes: [
+        { type: 'client', x: 0, y: 120 },
+        { type: 'load-balancer', x: 180, y: 120 },
+        { type: 'application-server', label: 'Catalog A', x: 370, y: 60 },
+        { type: 'application-server', label: 'Catalog B', x: 370, y: 180 },
+        { type: 'cache', label: 'Protected product cache', x: 580, y: 100 },
+        { type: 'sql-database', label: 'Product database', x: 790, y: 100 },
+        { type: 'worker', label: 'Refresh worker', x: 580, y: 270 },
+        { type: 'monitoring-service', x: 790, y: 270 },
+      ],
+      edges: [
+        [0, 1],
+        [1, 2],
+        [1, 3],
+        [2, 4],
+        [3, 4],
+        [4, 5],
+        [6, 4, 'async'],
+      ],
+    },
+  },
   'url-shortener': {
     starter: {
       nodes: [
@@ -319,72 +376,96 @@ const templateSpecs: Record<
   },
 };
 
-export const learningTemplates: LearningTemplate[] = [
-  {
-    id: 'url-shortener',
-    contentVersion: 1,
-    title: 'URL Shortener',
-    summary: 'A read-heavy redirect service with cached key lookup.',
-    level: 'beginner',
-    concepts: ['Caching', 'Sharding', 'Hot keys'],
-    assumptions: ['Redirect reads greatly exceed link creation writes.'],
-    knownTradeoffs: [
-      'Cache improves read latency but adds invalidation and stampede concerns.',
-    ],
-  },
-  {
-    id: 'rate-limiter',
-    contentVersion: 1,
-    title: 'Distributed Rate Limiter',
-    summary: 'A gateway using shared cached counters to enforce quotas.',
-    level: 'intermediate',
-    concepts: ['Quotas', 'Distributed counters', 'Overload'],
-    assumptions: ['Limits are enforced per user and per API route.'],
-    knownTradeoffs: [
-      'Shared counters improve consistency but add a network dependency.',
-    ],
-  },
-  {
-    id: 'news-feed',
-    contentVersion: 1,
-    title: 'News Feed',
-    summary: 'A cached feed with asynchronous fan-out workers.',
-    level: 'advanced',
-    concepts: ['Fan-out', 'Backpressure', 'Hot users'],
-    assumptions: [
-      'Most users have modest follower counts; a small group is very large.',
-    ],
-    knownTradeoffs: [
-      'Fan-out on write makes reads fast but amplifies celebrity posts.',
-    ],
-  },
-  {
-    id: 'file-storage',
-    contentVersion: 1,
-    title: 'File Storage Service',
-    summary: 'Separate metadata, durable objects, and background processing.',
-    level: 'intermediate',
-    concepts: ['Object storage', 'Metadata', 'Durability'],
-    assumptions: ['Binary data is kept outside the relational metadata store.'],
-    knownTradeoffs: [
-      'Direct object storage reduces application load but complicates authorization.',
-    ],
-  },
-  {
-    id: 'ecommerce-checkout',
-    contentVersion: 1,
-    title: 'E-commerce Checkout',
-    summary: 'Transactional order intake with asynchronous downstream work.',
-    level: 'intermediate',
-    concepts: ['Transactions', 'Idempotency', 'Queueing'],
-    assumptions: [
-      'Order acceptance and downstream fulfillment can be separated.',
-    ],
-    knownTradeoffs: [
-      'Asynchronous payment work improves resilience but requires status handling.',
-    ],
-  },
-];
+export const learningTemplates = (
+  [
+    {
+      id: 'cache-stampede',
+      contentVersion: 1,
+      title: 'Cache Stampede Lab',
+      summary:
+        'A popular cached key expires while application traffic continues to the database.',
+      level: 'intermediate',
+      concepts: [
+        'Request coalescing',
+        'Cache locking',
+        'Stale-while-revalidate',
+        'TTL jitter',
+      ],
+      assumptions: [
+        'One product key receives most read traffic and is expensive to rebuild.',
+      ],
+      knownTradeoffs: [
+        'Duplicate-work protection can increase wait latency; stale serving trades freshness for availability.',
+      ],
+    },
+    {
+      id: 'url-shortener',
+      contentVersion: 1,
+      title: 'URL Shortener',
+      summary: 'A read-heavy redirect service with cached key lookup.',
+      level: 'beginner',
+      concepts: ['Caching', 'Sharding', 'Hot keys'],
+      assumptions: ['Redirect reads greatly exceed link creation writes.'],
+      knownTradeoffs: [
+        'Cache improves read latency but adds invalidation and stampede concerns.',
+      ],
+    },
+    {
+      id: 'rate-limiter',
+      contentVersion: 1,
+      title: 'Distributed Rate Limiter',
+      summary: 'A gateway using shared cached counters to enforce quotas.',
+      level: 'intermediate',
+      concepts: ['Quotas', 'Distributed counters', 'Overload'],
+      assumptions: ['Limits are enforced per user and per API route.'],
+      knownTradeoffs: [
+        'Shared counters improve consistency but add a network dependency.',
+      ],
+    },
+    {
+      id: 'news-feed',
+      contentVersion: 1,
+      title: 'News Feed',
+      summary: 'A cached feed with asynchronous fan-out workers.',
+      level: 'advanced',
+      concepts: ['Fan-out', 'Backpressure', 'Hot users'],
+      assumptions: [
+        'Most users have modest follower counts; a small group is very large.',
+      ],
+      knownTradeoffs: [
+        'Fan-out on write makes reads fast but amplifies celebrity posts.',
+      ],
+    },
+    {
+      id: 'file-storage',
+      contentVersion: 1,
+      title: 'File Storage Service',
+      summary: 'Separate metadata, durable objects, and background processing.',
+      level: 'intermediate',
+      concepts: ['Object storage', 'Metadata', 'Durability'],
+      assumptions: [
+        'Binary data is kept outside the relational metadata store.',
+      ],
+      knownTradeoffs: [
+        'Direct object storage reduces application load but complicates authorization.',
+      ],
+    },
+    {
+      id: 'ecommerce-checkout',
+      contentVersion: 1,
+      title: 'E-commerce Checkout',
+      summary: 'Transactional order intake with asynchronous downstream work.',
+      level: 'intermediate',
+      concepts: ['Transactions', 'Idempotency', 'Queueing'],
+      assumptions: [
+        'Order acceptance and downstream fulfillment can be separated.',
+      ],
+      knownTradeoffs: [
+        'Asynchronous payment work improves resilience but requires status handling.',
+      ],
+    },
+  ] satisfies LearningTemplate[]
+).sort(byLearningOrder);
 
 const steps = [
   [
@@ -460,369 +541,458 @@ const worksheet = (
   peakMultiplier: peak,
 });
 
-export const challenges: ChallengeDefinition[] = [
-  {
-    id: 'url-shortener',
-    contentVersion: 1,
-    templateId: 'url-shortener',
-    title: 'Design a URL Shortener',
-    level: 'beginner',
-    summary:
-      'Build a low-latency service that creates short links and resolves them at scale.',
-    prompt:
-      'Design a service that creates compact URLs and redirects users reliably under highly read-heavy traffic.',
-    concepts: ['Read scaling', 'Hot keys', 'Sharding'],
-    functionalRequirements: [
-      'Create a short link',
-      'Redirect a short code',
-      'Support expiration',
-    ],
-    nonFunctionalRequirements: [
-      'Low redirect latency',
-      'High availability',
-      'Read-heavy scale',
-    ],
-    guidedSteps: steps,
-    worksheetDefaults: worksheet(1_000_000, 20, 95, 1, 8),
-    incident: {
-      id: 'url-viral',
-      title: 'Viral link',
-      hiddenDescription:
-        'A production traffic change will be revealed when tested.',
-      revealedDescription: 'A link goes viral while the cache is bypassed.',
-      durationSeconds: 60,
-      events: [
+export const challenges = (
+  [
+    {
+      id: 'cache-stampede',
+      contentVersion: 1,
+      templateId: 'cache-stampede',
+      title: 'Prevent a Cache Stampede',
+      level: 'intermediate',
+      summary:
+        'Measure origin amplification when a hot key expires, then apply bounded protections.',
+      prompt:
+        'A catalog endpoint depends on a popular cached product. Expiration causes concurrent requests to rebuild the same value and threatens the database.',
+      concepts: [
+        'Cache stampede',
+        'Request coalescing',
+        'Cache locking',
+        'Stale-while-revalidate',
+        'TTL jitter',
+      ],
+      functionalRequirements: [
+        'Return product details',
+        'Rebuild missing cache entries',
+        'Continue operating during refresh',
+      ],
+      nonFunctionalRequirements: [
+        'Protect the database from duplicate rebuilds',
+        'Bound request waiting',
+        'Make freshness trade-offs explicit',
+      ],
+      guidedSteps: steps,
+      worksheetDefaults: worksheet(1_000_000, 30, 98, 4, 10),
+      incident: {
+        id: 'popular-key-expiration',
+        title: 'Popular key expiration',
+        hiddenDescription:
+          'A cache-key lifecycle incident will be revealed when tested.',
+        revealedDescription:
+          'A key carrying 90% of reads expires and requires a five-second rebuild.',
+        durationSeconds: 60,
+        events: [
+          {
+            type: 'TRAFFIC_SET',
+            componentType: 'client',
+            requestsPerSecond: 10_000,
+            atSecond: 5,
+          },
+          {
+            type: 'CACHE_KEY_EXPIRATION',
+            componentType: 'cache',
+            keyCount: 1,
+            affectedTrafficPercent: 90,
+            rebuildDurationSeconds: 5,
+            durationSeconds: 5,
+            atSecond: 15,
+          },
+        ],
+      },
+      criteria: [
         {
-          type: 'TRAFFIC_SET',
-          componentType: 'client',
-          requestsPerSecond: 15_000,
-          atSecond: 15,
+          id: 'cache-path',
+          label: 'Cache request path',
+          explanation:
+            'Application, cache, and authoritative database are represented.',
+          componentTypes: ['application-server', 'cache', 'sql-database'],
+          minimum: 3,
         },
         {
-          type: 'CACHE_BYPASS',
-          componentType: 'cache',
-          durationSeconds: 25,
-          atSecond: 20,
+          id: 'refresh-role',
+          label: 'Refresh capability',
+          explanation: 'A worker can refresh known hot keys.',
+          componentTypes: ['worker'],
+          minimum: 1,
         },
       ],
+      referenceTradeoffs: [
+        'Request coalescing reduces duplicate work within each application instance.',
+        'Distributed locking reduces global rebuilds but requires expiry and bounded waiting.',
+        'Serving stale values protects availability only where bounded staleness is acceptable.',
+      ],
+      recommendedComponents: [
+        'application-server',
+        'cache',
+        'sql-database',
+        'worker',
+        'monitoring-service',
+      ],
+      lessonIds: ['prevent-cache-stampede'],
+      rubricId: 'cache-stampede-rubric',
     },
-    criteria: [
-      {
-        id: 'edge-entry',
-        label: 'Traffic distribution',
-        explanation: 'A load balancer or gateway is represented.',
-        componentTypes: ['load-balancer', 'api-gateway'],
-        minimum: 1,
+    {
+      id: 'url-shortener',
+      contentVersion: 1,
+      templateId: 'url-shortener',
+      title: 'Design a URL Shortener',
+      level: 'beginner',
+      summary:
+        'Build a low-latency service that creates short links and resolves them at scale.',
+      prompt:
+        'Design a service that creates compact URLs and redirects users reliably under highly read-heavy traffic.',
+      concepts: ['Read scaling', 'Hot keys', 'Sharding'],
+      functionalRequirements: [
+        'Create a short link',
+        'Redirect a short code',
+        'Support expiration',
+      ],
+      nonFunctionalRequirements: [
+        'Low redirect latency',
+        'High availability',
+        'Read-heavy scale',
+      ],
+      guidedSteps: steps,
+      worksheetDefaults: worksheet(1_000_000, 20, 95, 1, 8),
+      incident: {
+        id: 'url-viral',
+        title: 'Viral link',
+        hiddenDescription:
+          'A production traffic change will be revealed when tested.',
+        revealedDescription: 'A link goes viral while the cache is bypassed.',
+        durationSeconds: 60,
+        events: [
+          {
+            type: 'TRAFFIC_SET',
+            componentType: 'client',
+            requestsPerSecond: 15_000,
+            atSecond: 15,
+          },
+          {
+            type: 'CACHE_BYPASS',
+            componentType: 'cache',
+            durationSeconds: 25,
+            atSecond: 20,
+          },
+        ],
       },
-      {
-        id: 'cache',
-        label: 'Repeated-read cache',
-        explanation: 'A cache is represented on the read path.',
-        componentTypes: ['cache'],
-        minimum: 1,
-      },
-      {
-        id: 'partitioning',
-        label: 'Partitioned persistence',
-        explanation: 'A sharding router is represented.',
-        componentTypes: ['sharding'],
-        minimum: 1,
-      },
-    ],
-    referenceTradeoffs: [
-      'A cache lowers redirect latency but cache misses still require durable lookup.',
-      'Hash sharding spreads keys but resharding requires careful migration.',
-    ],
-  },
-  {
-    id: 'rate-limiter',
-    contentVersion: 1,
-    templateId: 'rate-limiter',
-    title: 'Design a Rate Limiter',
-    level: 'intermediate',
-    summary:
-      'Enforce distributed quotas without turning the limiter into the outage.',
-    prompt:
-      'Design a distributed API rate limiter with per-user and per-route policies.',
-    concepts: ['Quotas', 'Distributed counters', 'Overload'],
-    functionalRequirements: [
-      'Allow or reject requests',
-      'Support user and route policies',
-      'Expose remaining quota',
-    ],
-    nonFunctionalRequirements: [
-      'Low decision latency',
-      'Consistent limits',
-      'Graceful overload',
-    ],
-    guidedSteps: steps,
-    worksheetDefaults: worksheet(2_000_000, 50, 90, 2, 10),
-    incident: {
-      id: 'limiter-burst',
-      title: 'Coordinated burst',
-      hiddenDescription: 'A burst condition will be revealed when tested.',
-      revealedDescription:
-        'A coordinated burst arrives while gateway capacity is reduced.',
-      durationSeconds: 60,
-      events: [
+      criteria: [
         {
-          type: 'TRAFFIC_SET',
-          componentType: 'client',
-          requestsPerSecond: 20_000,
-          atSecond: 10,
+          id: 'edge-entry',
+          label: 'Traffic distribution',
+          explanation: 'A load balancer or gateway is represented.',
+          componentTypes: ['load-balancer', 'api-gateway'],
+          minimum: 1,
         },
         {
-          type: 'NODE_CAPACITY',
-          componentType: 'api-gateway',
-          multiplier: 0.35,
-          durationSeconds: 30,
-          atSecond: 15,
+          id: 'cache',
+          label: 'Repeated-read cache',
+          explanation: 'A cache is represented on the read path.',
+          componentTypes: ['cache'],
+          minimum: 1,
+        },
+        {
+          id: 'partitioning',
+          label: 'Partitioned persistence',
+          explanation: 'A sharding router is represented.',
+          componentTypes: ['sharding'],
+          minimum: 1,
         },
       ],
-    },
-    criteria: [
-      {
-        id: 'gateway',
-        label: 'Enforcement entry point',
-        explanation:
-          'An API gateway represents the rate-limiting decision point.',
-        componentTypes: ['api-gateway'],
-        minimum: 1,
-      },
-      {
-        id: 'counter-store',
-        label: 'Shared counter store',
-        explanation: 'A cache represents fast distributed counters.',
-        componentTypes: ['cache'],
-        minimum: 1,
-      },
-      {
-        id: 'monitoring',
-        label: 'Limit observability',
-        explanation: 'Monitoring is represented.',
-        componentTypes: ['monitoring-service'],
-        minimum: 1,
-      },
-    ],
-    referenceTradeoffs: [
-      'Strict shared counters improve consistency but add dependency latency.',
-      'Local allowance can preserve availability at the cost of temporary over-admission.',
-    ],
-  },
-  {
-    id: 'news-feed',
-    contentVersion: 1,
-    templateId: 'news-feed',
-    title: 'Design a News Feed',
-    level: 'advanced',
-    summary: 'Build a feed that handles normal users and celebrity fan-out.',
-    prompt:
-      'Design a home timeline for posting, following, and reading a ranked feed.',
-    concepts: ['Fan-out', 'Backpressure', 'Cache pressure'],
-    functionalRequirements: [
-      'Publish posts',
-      'Follow users',
-      'Read a home timeline',
-    ],
-    nonFunctionalRequirements: [
-      'Fast feed reads',
-      'Eventual consistency is acceptable',
-      'Handle celebrity accounts',
-    ],
-    guidedSteps: steps,
-    worksheetDefaults: worksheet(10_000_000, 40, 90, 4, 12),
-    incident: {
-      id: 'feed-celebrity',
-      title: 'Celebrity fan-out',
-      hiddenDescription: 'A fan-out condition will be revealed when tested.',
-      revealedDescription:
-        'A celebrity post creates a large fan-out backlog during elevated reads.',
-      durationSeconds: 75,
-      events: [
-        {
-          type: 'TRAFFIC_SET',
-          componentType: 'client',
-          requestsPerSecond: 25_000,
-          atSecond: 10,
-        },
-        {
-          type: 'QUEUE_INJECT',
-          componentType: 'message-queue',
-          messages: 50_000,
-          atSecond: 20,
-        },
+      referenceTradeoffs: [
+        'A cache lowers redirect latency but cache misses still require durable lookup.',
+        'Hash sharding spreads keys but resharding requires careful migration.',
       ],
     },
-    criteria: [
-      {
-        id: 'feed-cache',
-        label: 'Timeline cache',
-        explanation: 'A cache is represented for repeated feed reads.',
-        componentTypes: ['cache'],
-        minimum: 1,
+    {
+      id: 'rate-limiter',
+      contentVersion: 1,
+      templateId: 'rate-limiter',
+      title: 'Design a Rate Limiter',
+      level: 'intermediate',
+      summary:
+        'Enforce distributed quotas without turning the limiter into the outage.',
+      prompt:
+        'Design a distributed API rate limiter with per-user and per-route policies.',
+      concepts: ['Quotas', 'Distributed counters', 'Overload'],
+      functionalRequirements: [
+        'Allow or reject requests',
+        'Support user and route policies',
+        'Expose remaining quota',
+      ],
+      nonFunctionalRequirements: [
+        'Low decision latency',
+        'Consistent limits',
+        'Graceful overload',
+      ],
+      guidedSteps: steps,
+      worksheetDefaults: worksheet(2_000_000, 50, 90, 2, 10),
+      incident: {
+        id: 'limiter-burst',
+        title: 'Coordinated burst',
+        hiddenDescription: 'A burst condition will be revealed when tested.',
+        revealedDescription:
+          'A coordinated burst arrives while gateway capacity is reduced.',
+        durationSeconds: 60,
+        events: [
+          {
+            type: 'TRAFFIC_SET',
+            componentType: 'client',
+            requestsPerSecond: 20_000,
+            atSecond: 10,
+          },
+          {
+            type: 'NODE_CAPACITY',
+            componentType: 'api-gateway',
+            multiplier: 0.35,
+            durationSeconds: 30,
+            atSecond: 15,
+          },
+        ],
       },
-      {
-        id: 'fanout-queue',
-        label: 'Asynchronous fan-out',
-        explanation: 'A queue and worker are represented.',
-        componentTypes: ['message-queue', 'worker'],
-        minimum: 2,
-      },
-      {
-        id: 'feed-store',
-        label: 'Scalable feed storage',
-        explanation: 'A NoSQL store is represented.',
-        componentTypes: ['nosql-database'],
-        minimum: 1,
-      },
-    ],
-    referenceTradeoffs: [
-      'Fan-out on write accelerates reads but performs poorly for high-follower accounts.',
-      'Hybrid fan-out needs more complex read-time merging.',
-    ],
-  },
-  {
-    id: 'file-storage',
-    contentVersion: 1,
-    templateId: 'file-storage',
-    title: 'Design a File Storage Service',
-    level: 'intermediate',
-    summary: 'Separate durable file data from metadata and processing.',
-    prompt:
-      'Design an upload, download, and background-processing service for user files.',
-    concepts: ['Metadata', 'Durability', 'Async processing'],
-    functionalRequirements: [
-      'Upload and download files',
-      'List file metadata',
-      'Generate derived previews',
-    ],
-    nonFunctionalRequirements: [
-      'Durable storage',
-      'Large payload support',
-      'Failure-safe processing',
-    ],
-    guidedSteps: steps,
-    worksheetDefaults: worksheet(500_000, 8, 60, 2_048, 6),
-    incident: {
-      id: 'storage-outage',
-      title: 'Object storage slowdown',
-      hiddenDescription:
-        'A storage dependency incident will be revealed when tested.',
-      revealedDescription:
-        'Object storage becomes unavailable during active uploads.',
-      durationSeconds: 60,
-      events: [
+      criteria: [
         {
-          type: 'NODE_FAILURE',
-          componentType: 'object-storage',
-          durationSeconds: 20,
-          atSecond: 20,
+          id: 'gateway',
+          label: 'Enforcement entry point',
+          explanation:
+            'An API gateway represents the rate-limiting decision point.',
+          componentTypes: ['api-gateway'],
+          minimum: 1,
+        },
+        {
+          id: 'counter-store',
+          label: 'Shared counter store',
+          explanation: 'A cache represents fast distributed counters.',
+          componentTypes: ['cache'],
+          minimum: 1,
+        },
+        {
+          id: 'monitoring',
+          label: 'Limit observability',
+          explanation: 'Monitoring is represented.',
+          componentTypes: ['monitoring-service'],
+          minimum: 1,
         },
       ],
-    },
-    criteria: [
-      {
-        id: 'objects',
-        label: 'Binary object storage',
-        explanation: 'Object storage is represented.',
-        componentTypes: ['object-storage'],
-        minimum: 1,
-      },
-      {
-        id: 'metadata',
-        label: 'Separate metadata',
-        explanation: 'A database is represented separately from objects.',
-        componentTypes: ['sql-database', 'nosql-database'],
-        minimum: 1,
-      },
-      {
-        id: 'processing',
-        label: 'Background processing',
-        explanation: 'A queue and worker are represented.',
-        componentTypes: ['message-queue', 'worker'],
-        minimum: 2,
-      },
-    ],
-    referenceTradeoffs: [
-      'Direct uploads reduce service bandwidth but require scoped authorization.',
-      'Metadata and object writes need reconciliation after partial failure.',
-    ],
-  },
-  {
-    id: 'ecommerce-checkout',
-    contentVersion: 1,
-    templateId: 'ecommerce-checkout',
-    title: 'Design E-commerce Checkout',
-    level: 'intermediate',
-    summary: 'Accept transactional orders while isolating downstream work.',
-    prompt:
-      'Design checkout for inventory validation, order persistence, payment processing, and receipts.',
-    concepts: ['Transactions', 'Idempotency', 'Database scaling'],
-    functionalRequirements: [
-      'Create an order',
-      'Reserve inventory',
-      'Process payment and receipt',
-    ],
-    nonFunctionalRequirements: [
-      'Prevent duplicate charges',
-      'Preserve order state',
-      'Survive traffic spikes',
-    ],
-    guidedSteps: steps,
-    worksheetDefaults: worksheet(1_000_000, 5, 65, 8, 10),
-    incident: {
-      id: 'checkout-sale',
-      title: 'Flash sale',
-      hiddenDescription:
-        'A checkout load condition will be revealed when tested.',
-      revealedDescription:
-        'A flash sale spikes traffic while database capacity is reduced.',
-      durationSeconds: 75,
-      events: [
-        {
-          type: 'TRAFFIC_SET',
-          componentType: 'client',
-          requestsPerSecond: 15_000,
-          atSecond: 10,
-        },
-        {
-          type: 'NODE_CAPACITY',
-          componentType: 'sql-database',
-          multiplier: 0.25,
-          durationSeconds: 35,
-          atSecond: 20,
-        },
+      referenceTradeoffs: [
+        'Strict shared counters improve consistency but add dependency latency.',
+        'Local allowance can preserve availability at the cost of temporary over-admission.',
       ],
     },
-    criteria: [
-      {
-        id: 'transaction-store',
-        label: 'Transactional order store',
-        explanation: 'A SQL database is represented.',
-        componentTypes: ['sql-database'],
-        minimum: 1,
+    {
+      id: 'news-feed',
+      contentVersion: 1,
+      templateId: 'news-feed',
+      title: 'Design a News Feed',
+      level: 'advanced',
+      summary: 'Build a feed that handles normal users and celebrity fan-out.',
+      prompt:
+        'Design a home timeline for posting, following, and reading a ranked feed.',
+      concepts: ['Fan-out', 'Backpressure', 'Cache pressure'],
+      functionalRequirements: [
+        'Publish posts',
+        'Follow users',
+        'Read a home timeline',
+      ],
+      nonFunctionalRequirements: [
+        'Fast feed reads',
+        'Eventual consistency is acceptable',
+        'Handle celebrity accounts',
+      ],
+      guidedSteps: steps,
+      worksheetDefaults: worksheet(10_000_000, 40, 90, 4, 12),
+      incident: {
+        id: 'feed-celebrity',
+        title: 'Celebrity fan-out',
+        hiddenDescription: 'A fan-out condition will be revealed when tested.',
+        revealedDescription:
+          'A celebrity post creates a large fan-out backlog during elevated reads.',
+        durationSeconds: 75,
+        events: [
+          {
+            type: 'TRAFFIC_SET',
+            componentType: 'client',
+            requestsPerSecond: 25_000,
+            atSecond: 10,
+          },
+          {
+            type: 'QUEUE_INJECT',
+            componentType: 'message-queue',
+            messages: 50_000,
+            atSecond: 20,
+          },
+        ],
       },
-      {
-        id: 'async-payment',
-        label: 'Asynchronous downstream work',
-        explanation: 'A queue and worker are represented.',
-        componentTypes: ['message-queue', 'worker'],
-        minimum: 2,
+      criteria: [
+        {
+          id: 'feed-cache',
+          label: 'Timeline cache',
+          explanation: 'A cache is represented for repeated feed reads.',
+          componentTypes: ['cache'],
+          minimum: 1,
+        },
+        {
+          id: 'fanout-queue',
+          label: 'Asynchronous fan-out',
+          explanation: 'A queue and worker are represented.',
+          componentTypes: ['message-queue', 'worker'],
+          minimum: 2,
+        },
+        {
+          id: 'feed-store',
+          label: 'Scalable feed storage',
+          explanation: 'A NoSQL store is represented.',
+          componentTypes: ['nosql-database'],
+          minimum: 1,
+        },
+      ],
+      referenceTradeoffs: [
+        'Fan-out on write accelerates reads but performs poorly for high-follower accounts.',
+        'Hybrid fan-out needs more complex read-time merging.',
+      ],
+    },
+    {
+      id: 'file-storage',
+      contentVersion: 1,
+      templateId: 'file-storage',
+      title: 'Design a File Storage Service',
+      level: 'intermediate',
+      summary: 'Separate durable file data from metadata and processing.',
+      prompt:
+        'Design an upload, download, and background-processing service for user files.',
+      concepts: ['Metadata', 'Durability', 'Async processing'],
+      functionalRequirements: [
+        'Upload and download files',
+        'List file metadata',
+        'Generate derived previews',
+      ],
+      nonFunctionalRequirements: [
+        'Durable storage',
+        'Large payload support',
+        'Failure-safe processing',
+      ],
+      guidedSteps: steps,
+      worksheetDefaults: worksheet(500_000, 8, 60, 2_048, 6),
+      incident: {
+        id: 'storage-outage',
+        title: 'Object storage slowdown',
+        hiddenDescription:
+          'A storage dependency incident will be revealed when tested.',
+        revealedDescription:
+          'Object storage becomes unavailable during active uploads.',
+        durationSeconds: 60,
+        events: [
+          {
+            type: 'NODE_FAILURE',
+            componentType: 'object-storage',
+            durationSeconds: 20,
+            atSecond: 20,
+          },
+        ],
       },
-      {
-        id: 'checkout-scale',
-        label: 'Application redundancy',
-        explanation: 'At least two application servers are represented.',
-        componentTypes: ['application-server'],
-        minimum: 2,
+      criteria: [
+        {
+          id: 'objects',
+          label: 'Binary object storage',
+          explanation: 'Object storage is represented.',
+          componentTypes: ['object-storage'],
+          minimum: 1,
+        },
+        {
+          id: 'metadata',
+          label: 'Separate metadata',
+          explanation: 'A database is represented separately from objects.',
+          componentTypes: ['sql-database', 'nosql-database'],
+          minimum: 1,
+        },
+        {
+          id: 'processing',
+          label: 'Background processing',
+          explanation: 'A queue and worker are represented.',
+          componentTypes: ['message-queue', 'worker'],
+          minimum: 2,
+        },
+      ],
+      referenceTradeoffs: [
+        'Direct uploads reduce service bandwidth but require scoped authorization.',
+        'Metadata and object writes need reconciliation after partial failure.',
+      ],
+    },
+    {
+      id: 'ecommerce-checkout',
+      contentVersion: 1,
+      templateId: 'ecommerce-checkout',
+      title: 'Design E-commerce Checkout',
+      level: 'intermediate',
+      summary: 'Accept transactional orders while isolating downstream work.',
+      prompt:
+        'Design checkout for inventory validation, order persistence, payment processing, and receipts.',
+      concepts: ['Transactions', 'Idempotency', 'Database scaling'],
+      functionalRequirements: [
+        'Create an order',
+        'Reserve inventory',
+        'Process payment and receipt',
+      ],
+      nonFunctionalRequirements: [
+        'Prevent duplicate charges',
+        'Preserve order state',
+        'Survive traffic spikes',
+      ],
+      guidedSteps: steps,
+      worksheetDefaults: worksheet(1_000_000, 5, 65, 8, 10),
+      incident: {
+        id: 'checkout-sale',
+        title: 'Flash sale',
+        hiddenDescription:
+          'A checkout load condition will be revealed when tested.',
+        revealedDescription:
+          'A flash sale spikes traffic while database capacity is reduced.',
+        durationSeconds: 75,
+        events: [
+          {
+            type: 'TRAFFIC_SET',
+            componentType: 'client',
+            requestsPerSecond: 15_000,
+            atSecond: 10,
+          },
+          {
+            type: 'NODE_CAPACITY',
+            componentType: 'sql-database',
+            multiplier: 0.25,
+            durationSeconds: 35,
+            atSecond: 20,
+          },
+        ],
       },
-    ],
-    referenceTradeoffs: [
-      'Asynchronous payment avoids holding checkout open but requires explicit order states.',
-      'Sharded orders scale writes but complicate cross-customer reporting.',
-    ],
-  },
-];
+      criteria: [
+        {
+          id: 'transaction-store',
+          label: 'Transactional order store',
+          explanation: 'A SQL database is represented.',
+          componentTypes: ['sql-database'],
+          minimum: 1,
+        },
+        {
+          id: 'async-payment',
+          label: 'Asynchronous downstream work',
+          explanation: 'A queue and worker are represented.',
+          componentTypes: ['message-queue', 'worker'],
+          minimum: 2,
+        },
+        {
+          id: 'checkout-scale',
+          label: 'Application redundancy',
+          explanation: 'At least two application servers are represented.',
+          componentTypes: ['application-server'],
+          minimum: 2,
+        },
+      ],
+      referenceTradeoffs: [
+        'Asynchronous payment avoids holding checkout open but requires explicit order states.',
+        'Sharded orders scale writes but complicate cross-customer reporting.',
+      ],
+    },
+  ] satisfies ChallengeDefinition[]
+).sort(byLearningOrder);
 
 export function getChallenge(id: string) {
   return challenges.find((challenge) => challenge.id === id);
@@ -857,6 +1027,18 @@ export function createTemplateDocument(
     const node = createArchitectureNode(entry.type, { x: entry.x, y: entry.y });
     if (entry.label) node.data.label = entry.label;
     if (node.type === 'sharding') node.data.config.shardCount = 2;
+    if (templateId === 'cache-stampede' && node.type === 'worker') {
+      node.data.config.workerRole = 'cache-refresh';
+    }
+    if (templateId === 'cache-stampede' && reference && node.type === 'cache') {
+      node.data.config.requestCoalescing = true;
+      node.data.config.cacheLocking = true;
+      node.data.config.lockWaitTimeoutMs = 1500;
+      node.data.config.lockTtlMs = 6000;
+      node.data.config.staleWindowSeconds = 30;
+      node.data.config.ttlJitterPercent = 20;
+      node.data.config.backgroundRefresh = true;
+    }
     return node;
   });
   document.edges = spec.edges.map(([source, target, mode]) => {

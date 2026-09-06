@@ -41,12 +41,12 @@ describe('architecture document schema', () => {
 
     const migrated = parseArchitectureDocument(legacy);
 
-    expect(migrated.schemaVersion).toBe('1.3');
+    expect(migrated.schemaVersion).toBe('1.4');
     expect(migrated.scenarios).toEqual([]);
     expect(migrated.nodes[0].data.config.hitRatePercent).toBe(80);
   });
 
-  it('migrates a 1.1 document to 1.3 without changing its architecture ID', () => {
+  it('migrates a 1.1 document to 1.4 without changing its architecture ID', () => {
     const current = createArchitectureDocument('Version 1.1');
     const document = structuredClone(current) as unknown as Record<
       string,
@@ -57,7 +57,7 @@ describe('architecture document schema', () => {
 
     const migrated = parseArchitectureDocument(legacy);
 
-    expect(migrated.schemaVersion).toBe('1.3');
+    expect(migrated.schemaVersion).toBe('1.4');
     expect(migrated.id).toBe(current.id);
     expect(migrated.scenarios).toEqual([]);
   });
@@ -124,6 +124,49 @@ describe('architecture document schema', () => {
     document.nodes = [cache];
 
     expect(() => parseArchitectureDocument(document)).toThrow();
+  });
+
+  it('migrates 1.3 cache and worker deep-integration defaults', () => {
+    const current = createArchitectureDocument('Version 1.3');
+    const cache = createArchitectureNode('cache', { x: 0, y: 0 });
+    const worker = createArchitectureNode('worker', { x: 200, y: 0 });
+    for (const key of [
+      'ttlSeconds',
+      'staleWindowSeconds',
+      'ttlJitterPercent',
+      'requestCoalescing',
+      'cacheLocking',
+      'lockWaitTimeoutMs',
+      'lockTtlMs',
+      'backgroundRefresh',
+    ])
+      delete cache.data.config[key];
+    delete worker.data.config.workerRole;
+    const legacy = { ...current, schemaVersion: '1.3', nodes: [cache, worker] };
+
+    const migrated = parseArchitectureDocument(legacy);
+
+    expect(migrated.schemaVersion).toBe('1.4');
+    expect(migrated.nodes[0].data.config).toMatchObject({
+      ttlSeconds: 300,
+      staleWindowSeconds: 0,
+      requestCoalescing: false,
+      cacheLocking: false,
+      backgroundRefresh: false,
+    });
+    expect(migrated.nodes[1].data.config.workerRole).toBe('general');
+  });
+
+  it('rejects unsafe cache lock bounds', () => {
+    const document = createArchitectureDocument();
+    const cache = createArchitectureNode('cache', { x: 0, y: 0 });
+    cache.data.config.cacheLocking = true;
+    cache.data.config.lockWaitTimeoutMs = 5000;
+    cache.data.config.lockTtlMs = 1000;
+    document.nodes = [cache];
+    expect(() => parseArchitectureDocument(document)).toThrow(
+      /lock TTL must exceed/i,
+    );
   });
 
   it('rejects containment cycles', () => {

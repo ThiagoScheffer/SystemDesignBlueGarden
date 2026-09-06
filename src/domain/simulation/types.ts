@@ -47,6 +47,14 @@ export type ScenarioEvent =
       durationSeconds: number;
     })
   | (ScenarioEventBase & {
+      type: 'CACHE_KEY_EXPIRATION';
+      nodeId: string;
+      keyCount: number;
+      affectedTrafficPercent: number;
+      rebuildDurationSeconds: number;
+      durationSeconds: number;
+    })
+  | (ScenarioEventBase & {
       type: 'QUEUE_INJECT';
       nodeId: string;
       messages: number;
@@ -95,6 +103,9 @@ export type DiagnosticCode =
   | 'queue-growth'
   | 'high-tail-latency'
   | 'cache-miss-amplification'
+  | 'cache-stampede'
+  | 'origin-amplification'
+  | 'lock-contention'
   | 'hot-shard'
   | 'retry-amplification';
 
@@ -128,6 +139,14 @@ export interface NodeMetric {
   diagnostics: SimulationDiagnostic[];
   cacheHitRps?: number;
   cacheMissRps?: number;
+  cacheOriginRps?: number;
+  coalescedRps?: number;
+  lockWaitRps?: number;
+  lockTimeoutRps?: number;
+  staleServedRps?: number;
+  refreshRps?: number;
+  refreshFailureRps?: number;
+  cacheRebuildLatencyMs?: number;
   queueEnqueued?: number;
   queueDelivered?: number;
   routedRps?: Record<string, number>;

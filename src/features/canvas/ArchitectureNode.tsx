@@ -197,6 +197,11 @@ export function ArchitectureNode({
           {node.type === 'message-queue' && metric.backlog > 0 && (
             <span>{Math.round(metric.backlog).toLocaleString()} queued</span>
           )}
+          {node.type === 'cache' && metric.cacheOriginRps !== undefined && (
+            <span>
+              {Math.round(metric.cacheOriginRps).toLocaleString()} origin req/s
+            </span>
+          )}
         </div>
       )}
 

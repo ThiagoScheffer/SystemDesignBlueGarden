@@ -122,6 +122,7 @@ const baseComponentDefinitions: Omit<ComponentDefinition, 'education'>[] = [
       baseLatencyMs: 80,
       concurrencyLimit: 20,
       costPerHour: 0.12,
+      workerRole: 'general',
     }),
   },
   {
@@ -136,6 +137,14 @@ const baseComponentDefinitions: Omit<ComponentDefinition, 'education'>[] = [
       baseLatencyMs: 1,
       costPerHour: 0.15,
       hitRatePercent: 80,
+      ttlSeconds: 300,
+      staleWindowSeconds: 0,
+      ttlJitterPercent: 0,
+      requestCoalescing: false,
+      cacheLocking: false,
+      lockWaitTimeoutMs: 500,
+      lockTtlMs: 5000,
+      backgroundRefresh: false,
     }),
   },
   {

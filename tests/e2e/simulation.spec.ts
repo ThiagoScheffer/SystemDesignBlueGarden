@@ -250,3 +250,43 @@ test('creates a template as a separate local project', async ({ page }) => {
   });
   expect(projectCount).toBeGreaterThanOrEqual(2);
 });
+
+test('compares unprotected and coalesced cache-expiration runs', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByTitle('Learning Studio').click();
+  const hub = page.getByRole('dialog', { name: 'Learning Studio' });
+  const challenge = hub
+    .locator('.learning-card')
+    .filter({ hasText: 'Prevent a Cache Stampede' });
+  await challenge.getByRole('button', { name: 'Start guided' }).click();
+  const drawer = page.getByRole('complementary', {
+    name: 'Prevent a Cache Stampede learning workspace',
+  });
+  await expect(drawer).toBeVisible();
+  await expect(page.getByText('Recommended').first()).toBeVisible();
+
+  await drawer.getByRole('button', { name: 'Reveal and run incident' }).click();
+  await page.getByLabel('Simulation speed').selectOption('MAX');
+  await expect(drawer.getByText('Incident run completed')).toBeVisible({
+    timeout: 15_000,
+  });
+  const originRow = drawer
+    .locator('.run-metric-row')
+    .filter({ hasText: 'Cache peak origin RPS' });
+  await expect(originRow).toContainText('920');
+
+  await page.getByLabel('Cache architecture component').click();
+  await page.getByRole('button', { name: 'Learning', exact: true }).click();
+  await expect(page.getByText('Cache stampede', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Basic', exact: true }).click();
+  await page.getByLabel('Request coalescing').check();
+
+  await drawer.getByRole('button', { name: 'Run incident again' }).click();
+  await page.getByLabel('Simulation speed').selectOption('MAX');
+  await expect(drawer.locator('.run-selectors option')).toHaveCount(4, {
+    timeout: 15_000,
+  });
+  await expect(originRow).toContainText('201');
+});

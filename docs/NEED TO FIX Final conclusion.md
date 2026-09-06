@@ -1,3 +1,1350 @@
+# Evaluation of the Blue Garden Design Documents
+
+## Executive assessment
+
+The documents describe a coherent product and a technically sound implementation trajectory. The strongest aspect is the consistent separation between:
+
+* canonical architecture data,
+* React Flow presentation state,
+* deterministic simulation,
+* local persistence,
+* structured learning content,
+* and future evaluation logic.
+
+The project has already moved substantially beyond the original MVP. The main problem is no longer lack of product direction. It is **documentation drift, incomplete architectural specifications, and an increasingly fragmented roadmap**.
+
+The current documents mix four different purposes:
+
+1. product vision,
+2. implemented-state documentation,
+3. historical phase plans,
+4. future implementation prompts.
+
+That makes it difficult to determine which statements are authoritative.
+
+My overall assessment:
+
+* **Product direction:** strong
+* **Frontend and domain architecture:** strong
+* **Simulation specification:** relatively mature
+* **Learning-content architecture:** promising
+* **Operational and security architecture:** underdeveloped
+* **Roadmap consistency:** weak
+* **Implementation traceability:** incomplete
+* **Documentation governance:** currently the largest documentation-level risk
+
+This review is based on the uploaded planning and current-state documents, not a direct audit of the source repository. Therefore, implementation claims are treated as reported state rather than independently verified facts.      
+
+---
+
+# 1. Highest-priority issue: establish a single source of truth
+
+The documents currently contradict one another.
+
+Examples:
+
+* The Phase 1 plan describes schema `1.2`.
+* The Phase 2 plan also presents schema `1.2`.
+* The Phase 3 document says the schema remains `1.3`.
+* The new-components document contains both a historical statement that the current schema is `1.3` and a status section saying the first vertical slice is implemented on `1.4`.
+* The current-state document says the current architecture schema is `1.4`.
+
+These contradictions are understandable historically, but they make the plans unsafe as implementation inputs.
+
+## Improvement
+
+Create a document hierarchy:
+
+```text
+/docs
+  /product
+    product-vision.md
+    product-principles.md
+
+  /architecture
+    system-context.md
+    frontend-architecture.md
+    simulation-architecture.md
+    persistence-architecture.md
+    learning-domain.md
+    security-model.md
+
+  /contracts
+    architecture-schema.md
+    scenario-schema.md
+    simulation-contracts.md
+    learning-content-schema.md
+
+  /roadmap
+    current-roadmap.md
+    completed-milestones.md
+
+  /decisions
+    ADR-001-react-flow.md
+    ADR-002-local-first.md
+    ADR-003-deterministic-simulation.md
+    ...
+
+  current-state.md
+  changelog.md
+```
+
+Each document should have:
+
+* status: draft, active, superseded, or historical,
+* owner,
+* last reviewed date,
+* implementation version,
+* related ADRs,
+* superseded-by link.
+
+The phase plans should be marked historical after implementation. They should not remain mixed with active specifications.
+
+---
+
+# 2. The master plan is too broad to remain an implementation specification
+
+The master design document is useful as a product vision, but it contains many components and capabilities that are neither implemented nor near-term:
+
+* WAF
+* reverse proxy
+* Kubernetes
+* event bus
+* durable log
+* circuit breaker
+* rate limiter
+* identity provider
+* secrets manager
+* backup and disaster recovery
+* collaboration
+* presentation mode
+* cloud imports
+* advanced AI review
+
+This is appropriate for a vision document but not for a current technical plan.
+
+## Risk
+
+Developers may interpret the master plan as a backlog commitment rather than an option space. This can cause component proliferation and premature abstractions.
+
+## Improvement
+
+Separate the product into explicit capability levels:
+
+### Level A — canonical primitives
+
+Components already central to the simulation model:
+
+* Client
+* DNS
+* CDN
+* Load Balancer
+* API Gateway
+* Application Server
+* Worker
+* Cache
+* SQL
+* NoSQL
+* Object Storage
+* Queue
+* Sharding
+* Monitoring
+* Region
+* Note
+
+### Level B — extensions of existing primitives
+
+Prefer extending current components where the behavior is not independently meaningful:
+
+* tracing as Monitoring capability,
+* durable ordered mode as Queue capability,
+* shard-router behavior as Sharding capability,
+* cache refresh as Worker role,
+* replication as database or object-storage configuration.
+
+### Level C — genuinely distinct simulation components
+
+Add only when they have an independent model and educational value:
+
+* External API
+* WebSocket Gateway
+* Search Engine
+* Browser Worker
+* Media Processor
+
+### Level D — deferred visual abstractions
+
+Add only after the product proves a concrete learning need:
+
+* Kubernetes cluster
+* VPC
+* firewall
+* secrets manager
+* KMS
+* identity provider
+* disaster-recovery group
+
+A new node type should require:
+
+1. distinct configuration,
+2. distinct simulation semantics,
+3. at least one challenge using it,
+4. deterministic diagnostics,
+5. tests,
+6. a migration/default strategy.
+
+Without those six conditions, extend an existing component instead.
+
+---
+
+# 3. Missing end-to-end system architecture document
+
+The documents describe individual areas well, but there is no single architecture document showing how the application works as a system.
+
+A reader must infer the runtime architecture from multiple files.
+
+## What should be added
+
+### System context
+
+```text
+User
+  │
+Browser application
+  ├── React editor
+  ├── Zustand stores
+  ├── Web Worker simulator
+  ├── IndexedDB persistence
+  └── Static learning-content registries
+```
+
+### Major runtime boundaries
+
+Document:
+
+* UI thread
+* simulation worker
+* canonical architecture domain
+* React Flow adapter
+* local persistence boundary
+* static content initialization
+* evaluation boundary
+* import/export boundary
+
+### Data-flow diagrams
+
+At minimum:
+
+#### Editor mutation flow
+
+```text
+User action
+→ editor action
+→ domain validation
+→ canonical document update
+→ history transaction
+→ React Flow projection
+→ debounced persistence
+```
+
+#### Simulation flow
+
+```text
+Canonical architecture
++ scenario
+→ preflight validation
+→ immutable snapshot
+→ worker input
+→ deterministic ticks
+→ simulation store
+→ diagnostics
+→ completed-run persistence
+```
+
+#### Challenge flow
+
+```text
+Challenge definition
+→ attempt
+→ independent architecture project
+→ scenario run
+→ evidence extraction
+→ comparison
+→ persisted progress
+```
+
+This would make architectural dependencies and ownership much clearer.
+
+---
+
+# 4. Requirements are not sufficiently measurable
+
+The documents contain extensive feature lists, but many requirements are expressed as capabilities rather than measurable acceptance criteria.
+
+Examples:
+
+* “without significant friction”
+* “acceptable interaction performance”
+* “material value”
+* “technically consistent”
+* “educationally useful”
+* “real bottleneck”
+
+These are directionally correct but insufficient for engineering validation.
+
+## Improvement
+
+Add measurable product and technical service-level objectives.
+
+### Editor objectives
+
+* P95 drag-frame processing below 16 ms for the supported reference graph.
+* Autosave begins within 500–1,000 ms after the final transaction.
+* Import of a 5 MB architecture document completes within a defined limit.
+* Undo and redo complete within a defined interaction threshold.
+* No canonical-state loss after forced reload during pending autosave.
+
+### Simulation objectives
+
+* Same canonical input produces identical normalized output.
+* Worker cancellation acknowledged within a bounded wall-clock duration.
+* Tick ingestion remains within main-thread budget.
+* Maximum graph size and scenario duration are explicitly supported.
+* Diagnostic generation remains deterministic.
+
+### Learning objectives
+
+* Challenge startup success rate.
+* Percentage of attempts that reach first simulation.
+* Percentage of users who perform a second run after changing the architecture.
+* Before/after comparison usage.
+* Challenge completion and return rates.
+
+### Reliability objectives
+
+Even for a local application:
+
+* zero partial import commits,
+* zero active-document replacement on invalid migration,
+* recoverable storage failure behavior,
+* backward-compatibility test coverage for every schema version.
+
+---
+
+# 5. No explicit domain invariants catalogue
+
+The plans mention some invariants, but they are scattered across editor, simulation, scenario, and learning documents.
+
+That becomes risky as schema complexity grows.
+
+## Add a formal invariants document
+
+It should cover:
+
+### Architecture invariants
+
+* unique node and edge IDs,
+* no dangling edges,
+* valid parent relationships,
+* no containment cycles,
+* valid configuration by component type,
+* portable document independent from UI state,
+* deterministic canonical serialization.
+
+### Simulation invariants
+
+* all numeric results finite and non-negative,
+* identical input produces identical result,
+* disabled edges carry no traffic,
+* excluded structural nodes do not process traffic,
+* editing cannot mutate an active run snapshot,
+* speed affects presentation only,
+* event ordering is total and deterministic.
+
+### Learning invariants
+
+* all referenced concept/template/rubric/question IDs exist,
+* content versions are immutable after publication,
+* attempts retain the challenge version they began with,
+* static content is not stored as user data,
+* submitted comparisons remain immutable,
+* reference solutions are alternatives, not unique “correct” answers.
+
+### Evaluation invariants
+
+* every finding includes evidence,
+* rule output is reproducible,
+* hard failures are separate from recommendations,
+* scores never replace diagnostic feedback,
+* rules may not infer configuration that is not represented in the architecture.
+
+This is particularly important because the transcript-derived critique was that architecture intentions cannot remain “in the designer’s head.” Blue Garden should enforce that principle in its own domain model.
+
+---
+
+# 6. API and interaction semantics are under-specified
+
+Although this is currently a client-only application, it still has internal APIs:
+
+* store actions,
+* worker messages,
+* persistence repositories,
+* content registries,
+* simulation contracts,
+* import/export contracts.
+
+The worker protocol is documented relatively well. The other internal boundaries are not.
+
+## Missing specifications
+
+* Editor command contract
+* History transaction semantics
+* Autosave conflict/revision behavior
+* Repository error model
+* Content-registry initialization behavior
+* Evaluation trigger model
+* Canonical serialization ordering
+* Project identity and duplication semantics
+* Template instantiation semantics
+* Attempt-to-architecture ownership rules
+
+## Improvement
+
+Document each internal boundary as if it were a service API:
+
+```ts
+type ProjectRepositoryResult<T> =
+  | { ok: true; value: T }
+  | {
+      ok: false;
+      code:
+        | 'storage-unavailable'
+        | 'quota-exceeded'
+        | 'validation-failed'
+        | 'migration-failed'
+        | 'not-found';
+      message: string;
+      recoverable: boolean;
+    };
+```
+
+This prevents inconsistent UI-level exception handling and swallowed failures.
+
+---
+
+# 7. Schema evolution needs a stronger governance model
+
+Version migrations are mentioned repeatedly, but the long-term schema strategy is incomplete.
+
+## Missing decisions
+
+* Is the schema version global or capability-based?
+* Can migration functions mutate IDs?
+* Are migrations required to be reversible?
+* Are imported future versions rejected or retained read-only?
+* Is schema canonicalization performed after migration?
+* How are deprecated component types handled?
+* What happens when challenge content expects a newer capability than the architecture schema supports?
+* How long are versions supported?
+* Are completed runs tied to the exact engine model version?
+
+## Critical improvement: version simulation semantics
+
+Architecture schema version alone is insufficient.
+
+A completed run should record something like:
+
+```ts
+interface SimulationProvenance {
+  engineVersion: string;
+  modelVersion: string;
+  architectureSchemaVersion: string;
+  scenarioSchemaVersion: string;
+  challengeId?: string;
+  challengeVersion?: number;
+  generatedAt: string;
+}
+```
+
+Otherwise, after formula changes, two runs may look comparable even though they were produced by different models.
+
+For educational comparison, that is a material correctness issue.
+
+---
+
+# 8. Simulation accuracy boundaries need formal treatment
+
+The documents correctly state that the simulator is educational and approximate. However, this warning should be operationalized rather than left as prose.
+
+## Missing model specification
+
+For each modeled component, document:
+
+* input variables,
+* output variables,
+* formulas,
+* caps,
+* assumptions,
+* unsupported behavior,
+* diagnostic thresholds,
+* expected pedagogical interpretation.
+
+Example:
+
+```text
+Model: Cache
+
+Represents:
+- local hit completion
+- miss propagation
+- bypass
+- key-expiration amplification
+- request coalescing
+- stale serving
+
+Does not represent:
+- key-level eviction policy
+- distributed cache topology
+- network partition between cache nodes
+- memory fragmentation
+- realistic Redis command scheduling
+```
+
+## Add confidence classifications
+
+Each metric could be categorized:
+
+* **Directly configured:** cost per hour, capacity
+* **Deterministically derived:** utilization, queue depth
+* **Heuristic estimate:** average latency, P95 latency
+* **Educational signal:** bottleneck severity, architecture recommendation
+
+This sharply reduces false precision.
+
+---
+
+# 9. The latency model is useful but too simplistic for expanding scope
+
+The existing queue-delay approximation is adequate for a basic educational engine, but future component models will expose its limits.
+
+Current concerns:
+
+* utilization is based on aggregate capacity,
+* P95 is derived through a fixed multiplier,
+* synchronous paths use a longest-required-path approximation,
+* timeout and retry behavior are simplified,
+* correlation between downstream failures is not modeled,
+* no service-time distribution exists,
+* fan-out tail amplification is only partially represented.
+
+## Improvement
+
+Do not replace the model immediately. Introduce explicit model tiers:
+
+### Tier 1 — simple deterministic
+
+Current formula-based model.
+
+### Tier 2 — component-specific approximation
+
+Different queue and latency formulas for:
+
+* database connection pools,
+* queues,
+* external APIs,
+* browser workers,
+* media processors,
+* fan-out workers.
+
+### Tier 3 — advanced educational model
+
+Optional deterministic distributions or fixed quantile profiles.
+
+The key is to version these semantics and keep outputs explainable.
+
+---
+
+# 10. Missing workload model
+
+Traffic is currently dominated by RPS and percentages. That is insufficient for many future challenges.
+
+## Additional workload dimensions needed
+
+* request class or operation,
+* payload size,
+* read/write ratio,
+* key distribution,
+* tenant distribution,
+* object size,
+* follower distribution,
+* cache-key popularity,
+* message size,
+* concurrency duration,
+* connection lifetime,
+* burstiness.
+
+Without a workload abstraction, future models risk adding challenge-specific fields directly into unrelated nodes.
+
+## Recommended contract
+
+```ts
+interface WorkloadProfile {
+  operations: Array<{
+    id: string;
+    name: string;
+    requestsPerSecond: number;
+    payloadBytes?: number;
+    responseBytes?: number;
+    trafficType: 'read' | 'write' | 'mixed';
+    keyDistribution?: 'uniform' | 'zipfian' | 'hot-key' | 'hot-tenant';
+    consistencyRequirement?: 'strong' | 'eventual' | 'session';
+  }>;
+}
+```
+
+This should be added only when at least two simulation capability packs require it, but the design decision should be made now.
+
+---
+
+# 11. Data architecture and lifecycle are not fully documented
+
+The current state describes architecture documents, attempts, and simulation runs, but the overall local data model is incomplete.
+
+## Missing topics
+
+* Dexie table definitions and relations
+* deletion cascade behavior
+* project duplication semantics
+* orphaned attempts
+* orphaned simulation runs
+* retention policies
+* storage quota handling
+* exportability of learning attempts
+* user-requested reset/delete-all behavior
+* corruption recovery
+* backup and restore
+* local data privacy
+
+## Add a persistence model
+
+```text
+ArchitectureProject
+  ├── SavedScenarios
+  ├── CompletedSimulationRuns
+  └── ChallengeAttempt reference
+
+ChallengeAttempt
+  ├── Challenge/version reference
+  ├── ArchitectureProject reference
+  ├── Answers
+  ├── Submitted snapshot
+  └── Comparison snapshot
+```
+
+Document ownership and cascade rules explicitly.
+
+Example:
+
+* deleting an active challenge project should prompt whether to retain or abandon the attempt;
+* deleting a project should delete or detach completed runs;
+* static templates must never be mutated;
+* submitted snapshots must remain immutable.
+
+---
+
+# 12. Security is materially under-specified
+
+The current application is local-only, which reduces the attack surface, but it does not eliminate security requirements.
+
+## Missing areas
+
+### Import security
+
+* maximum file size,
+* JSON parsing limits,
+* deep-nesting limits,
+* string-length limits,
+* denial-of-service protection,
+* malicious Markdown sanitization,
+* unsafe URL handling,
+* prototype-pollution resistance.
+
+### Browser security
+
+* Content Security Policy
+* external-link policy
+* download generation safety
+* worker message validation
+* dependency vulnerability management
+* IndexedDB data exposure model
+
+### Future backend readiness
+
+Before accounts or collaboration are introduced, define:
+
+* identity boundary,
+* authorization model,
+* tenant isolation,
+* sharing permissions,
+* public-template moderation,
+* rate limiting,
+* audit logs,
+* deletion/export rights.
+
+## Immediate recommendation
+
+Add a security design document now, even if most controls are local.
+
+---
+
+# 13. Accessibility is present as a requirement but not as an architecture
+
+The phase plans mention accessibility and keyboard support, but there is no systematic specification.
+
+React Flow canvases are difficult to make accessible. “Keyboard accessible” needs more precision.
+
+## Missing acceptance criteria
+
+* keyboard creation and connection of nodes,
+* canvas focus order,
+* screen-reader representation of graph structure,
+* nonvisual relationship inspection,
+* status announcements during simulation,
+* accessible chart summaries,
+* high-contrast mode,
+* zoom-independent text readability,
+* reduced-motion handling,
+* focus restoration after drawers and dialogs close.
+
+## Improvement
+
+Define two accessibility layers:
+
+1. **UI accessibility** for panels, forms, menus, dialogs, and controls.
+2. **Graph accessibility** through an alternate structured outline of nodes, edges, statuses, and diagnostics.
+
+The second layer is essential. A visual canvas alone cannot satisfy meaningful nonvisual access.
+
+---
+
+# 14. The learning model needs stronger pedagogical specification
+
+The Learning Studio is implemented, but the documents focus mostly on content structure and UI flow.
+
+## Missing educational design elements
+
+* prerequisite graph,
+* concept mastery model,
+* challenge difficulty calibration,
+* hint escalation,
+* misconception taxonomy,
+* challenge versioning policy,
+* content review workflow,
+* source quality criteria,
+* learning outcome measurement,
+* spaced repetition or revisit strategy,
+* rubric inter-rater consistency.
+
+## Improvement
+
+Each challenge should define:
+
+```ts
+interface ChallengePedagogy {
+  prerequisites: string[];
+  targetConcepts: string[];
+  misconceptionIds: string[];
+  evidenceRequired: string[];
+  hintLevels: Array<{
+    level: 1 | 2 | 3;
+    content: string;
+    disclosureCost: 'low' | 'medium' | 'high';
+  }>;
+  masterySignals: string[];
+}
+```
+
+A challenge should not merely detect whether a cache exists. It should test whether the user understands:
+
+* why it exists,
+* what failure mode it introduces,
+* how invalidation is handled,
+* what happens when it is bypassed,
+* which consistency tradeoff was chosen.
+
+---
+
+# 15. Evaluation rules need conflict and uncertainty handling
+
+The new-components plan correctly prioritizes deterministic evaluation and evidence. However, a rule engine can still make incorrect recommendations when context is missing.
+
+Example:
+
+* “Database has no replication” may be acceptable for a deliberately low-cost prototype.
+* “No cache” is not always a flaw.
+* “Queue has no dead-letter behavior” may be irrelevant if the modeled queue is explicitly ephemeral.
+* “Single region” may be acceptable under the defined availability target.
+
+## Improvement
+
+Every rule should contain:
+
+```ts
+interface EvaluationRule {
+  id: string;
+  appliesWhen: Predicate;
+  findingWhen: Predicate;
+  severity: 'info' | 'warning' | 'critical';
+  confidence: 'high' | 'medium' | 'low';
+  evidenceRequirements: string[];
+  exceptions: string[];
+  relatedRequirementTypes: string[];
+}
+```
+
+Findings should distinguish:
+
+* violated explicit requirement,
+* structural risk,
+* missing documentation,
+* optional improvement,
+* design ambiguity.
+
+This is superior to scoring an architecture against a universal “best” topology.
+
+---
+
+# 16. Architecture Decision Records are referenced but not operationalized
+
+The master plan recognizes decisions, assumptions, risks, and trade-offs. Typed notes exist. However, there is no documented lifecycle for design decisions.
+
+## Missing functionality and semantics
+
+* superseding a decision,
+* linking decisions to nodes/edges,
+* recording alternatives,
+* recording consequences,
+* recording decision status,
+* filtering unresolved decisions,
+* evaluation treatment of intentional tradeoffs.
+
+## Recommended structured ADR
+
+```ts
+interface ArchitectureDecision {
+  id: string;
+  title: string;
+  status: 'proposed' | 'accepted' | 'rejected' | 'superseded';
+  context: string;
+  decision: string;
+  alternatives: string[];
+  consequences: string[];
+  relatedNodeIds: string[];
+  relatedEdgeIds: string[];
+  supersedesId?: string;
+}
+```
+
+Typed free-form notes are useful, but they do not fully replace ADRs.
+
+---
+
+# 17. Missing explicit request and data-flow documentation in challenges
+
+The earlier System Design extraction emphasized that diagrams alone are incomplete. Blue Garden currently models topology and operations well, but the plans do not clearly require users to describe full application flows.
+
+A design can contain correct components while leaving critical behavior unspecified.
+
+## Add flow definitions
+
+Examples:
+
+```ts
+interface ArchitectureFlow {
+  id: string;
+  name: string;
+  type: 'read' | 'write' | 'background' | 'failure' | 'recovery';
+  steps: Array<{
+    nodeId: string;
+    edgeId?: string;
+    operation: string;
+    expectedOutcome: string;
+  }>;
+  consistencyExpectation?: string;
+  failurePolicy?: string;
+}
+```
+
+For a URL shortener, require at least:
+
+* create-short-URL flow,
+* redirect flow,
+* analytics flow,
+* collision retry flow.
+
+This would improve both TDD quality and deterministic evaluation.
+
+---
+
+# 18. Missing API and data-model worksheets
+
+The Learning Studio includes requirements and capacity estimation, but the documents do not describe equivalent structured support for:
+
+* API design,
+* data schema,
+* indexing,
+* partition keys,
+* consistency,
+* retention,
+* idempotency.
+
+These are central to system design and were specifically identified as missing in the source critique.
+
+## Recommended additions
+
+### API worksheet
+
+* endpoint or operation,
+* method,
+* request structure,
+* response structure,
+* authentication,
+* idempotency,
+* pagination,
+* error model,
+* rate limits.
+
+### Data-model worksheet
+
+* entity,
+* key,
+* partition key,
+* indexes,
+* relationships,
+* retention,
+* consistency,
+* expected access patterns.
+
+These should remain optional in free-canvas mode but become challenge completion criteria when relevant.
+
+---
+
+# 19. Missing cost-model specification
+
+The current simulator calculates estimated monthly cost as hourly component cost multiplied by 730 hours. This is transparent, but future plans mention bandwidth, storage, processing, and cloud-like behavior.
+
+## Risk
+
+The cost metric may appear more meaningful than it is.
+
+## Improvement
+
+Explicitly define cost model levels:
+
+### Current
+
+```text
+Fixed provisioned component cost
+= hourly configured cost × 730
+```
+
+### Future optional dimensions
+
+* request cost,
+* storage cost,
+* transfer cost,
+* processing cost,
+* idle versus utilization-based cost.
+
+Do not add cloud-provider-specific pricing until there is a clear product requirement. The current neutral model is superior for education.
+
+Label the metric as **configured infrastructure estimate**, not “monthly cloud cost.”
+
+---
+
+# 20. Missing observability of the application itself
+
+The product teaches observability but the documents do not specify how Blue Garden itself is monitored.
+
+For a purely local application, this may initially be limited, but quality engineering still requires:
+
+* error boundaries,
+* structured client logs,
+* performance marks,
+* worker crash reporting,
+* migration-failure diagnostics,
+* storage-error diagnostics,
+* test telemetry,
+* optional privacy-preserving product analytics.
+
+## Improvement
+
+Define an internal diagnostics layer that works without a backend and can export a support bundle:
+
+```text
+Application version
+Schema version
+Browser
+Feature flags
+Recent non-sensitive errors
+Storage status
+Worker state
+Document validation summary
+```
+
+Do not include project content unless explicitly approved by the user.
+
+---
+
+# 21. Testing documentation is strong but lacks a traceability matrix
+
+The phase plans include extensive test categories, which is a strength. However, there is no visible mapping from requirement to implementation to test.
+
+## Add traceability
+
+| Requirement                                   | Design component            | Acceptance test | Status      |
+| --------------------------------------------- | --------------------------- | --------------- | ----------- |
+| Invalid import cannot replace active project  | Import transaction boundary | E2E-IMPORT-004  | Implemented |
+| Same input yields same simulation             | Deterministic engine        | ENG-DET-001     | Implemented |
+| Attempt resumes after reload                  | Dexie attempt repository    | E2E-LEARN-003   | Implemented |
+| Cache expiration amplification is explainable | Cache model + diagnostics   | ENG-CACHE-012   | Implemented |
+
+This is especially useful because the project spans product, domain, worker, UI, and content code.
+
+---
+
+# 22. Missing release and compatibility strategy
+
+The current application reports version `0.1.0` despite several implemented phases and schema migrations. That may be intentional, but the release strategy is unspecified.
+
+## Missing decisions
+
+* semantic versioning policy,
+* migration support window,
+* feature flag policy,
+* release channels,
+* rollback strategy,
+* schema compatibility guarantees,
+* deprecation handling,
+* release notes format.
+
+## Recommendation
+
+Use separate versions:
+
+* application version,
+* architecture schema version,
+* simulation engine version,
+* learning-content bundle version,
+* IndexedDB schema version.
+
+Do not conflate them.
+
+---
+
+# 23. Current backlog items should be reprioritized
+
+The current-state document lists several incomplete editor capabilities. Some are more important than adding new simulation components.
+
+## Recommended priority order
+
+### Priority 0 — correctness and documentation
+
+1. Consolidate documentation.
+2. Add engine/model provenance.
+3. Formalize schema and migration governance.
+4. Complete missing automated coverage around current schema `1.4`.
+5. Add persistence lifecycle and failure documentation.
+
+### Priority 1 — core editor completeness
+
+1. Full project-management screen.
+2. Complete multi-select.
+3. Copy/cut/paste and duplication.
+4. Complete Region containment.
+5. Version/run comparison UX.
+6. Large-graph performance profiling.
+
+These directly affect the core “build → modify → compare” loop.
+
+### Priority 2 — TDD completeness
+
+1. Functional/non-functional requirements worksheet.
+2. API design worksheet.
+3. Data-model worksheet.
+4. Structured architecture flows.
+5. Structured ADRs.
+6. Explicit tradeoff and failure-analysis sections.
+
+### Priority 3 — learning depth
+
+1. Rubric/evidence evaluator.
+2. Comparison mode.
+3. Challenge prerequisites and misconception model.
+4. Additional challenge packs using existing components.
+
+### Priority 4 — new component capability packs
+
+1. External API + slow-request tracing
+2. Direct-upload/file-transfer behavior
+3. Consistent-hashing/rebalancing enhancement
+4. Feed fan-out model
+5. WebSocket Gateway
+6. Search Engine
+7. Browser Worker / scraper
+8. Media Processor
+9. Repair Worker
+
+### Priority 5 — platform expansion
+
+* backend accounts,
+* cloud sync,
+* real sharing,
+* collaboration,
+* public ecosystem,
+* AI coach.
+
+This order is superior because it improves the existing core before increasing the component surface area.
+
+---
+
+# 24. Specific contradictions to resolve
+
+## Phase 1 scope versus current state
+
+Phase 1 says multi-select, copy/paste, duplication, named projects, and Region containment are included and required for completion. The current-state document says several of these remain incomplete.
+
+Therefore one of these must be true:
+
+* Phase 1 was not actually completed against its original definition of done, or
+* the Phase 1 document no longer represents the accepted scope.
+
+Do not leave this ambiguous. Mark each original acceptance criterion:
+
+```text
+Implemented
+Partially implemented
+Deferred by decision
+Superseded
+```
+
+## Phase 3 challenge count
+
+The Phase 3 plan describes five challenges. Current state describes six, including Cache Stampede. The active learning-content catalogue should be documented in one registry-derived table rather than manually repeated.
+
+## Schema version
+
+The new-components file contains historical `1.3` instructions and an implemented `1.4` status. Split this file into:
+
+* completed milestone report,
+* active next-milestone plan.
+
+## AI evaluation
+
+The master vision includes an AI evaluator. Later documents explicitly exclude AI and prioritize deterministic evaluation. The active roadmap should state:
+
+> AI explanation remains optional and deferred. Deterministic evidence-based evaluation is the authoritative assessment layer.
+
+This is a materially better product and engineering position.
+
+---
+
+# 25. Recommended next milestone
+
+The best next milestone is **not** adding all deferred components.
+
+It should be:
+
+# Architecture Specification and Evaluation Foundation
+
+## Deliverables
+
+### Documentation consolidation
+
+* authoritative current architecture,
+* canonical data contracts,
+* simulation model catalogue,
+* persistence lifecycle,
+* schema/version matrix,
+* active roadmap,
+* superseded-document markers.
+
+### TDD-support structures
+
+* functional and non-functional requirement records,
+* API worksheet,
+* data-model worksheet,
+* architecture flow definitions,
+* structured ADRs.
+
+### Provenance
+
+* engine version in completed runs,
+* challenge/content version,
+* scenario model version,
+* comparison compatibility checks.
+
+### Deterministic evaluation foundation
+
+* reusable rules,
+* explicit applicability conditions,
+* evidence references,
+* confidence,
+* exceptions,
+* no universal topology assumptions.
+
+### Comparison mode
+
+* only compare runs with compatible engine/model versions,
+* show absolute and percentage differences,
+* attribute major changes to nodes, edges, and configuration changes.
+
+### Complete current editor gaps
+
+* project management,
+* multi-select,
+* clipboard operations,
+* Region containment,
+* test coverage.
+
+This milestone produces greater leverage than adding WebSocket, Search Engine, or Media Processor immediately. It makes future capability packs safer, more testable, and easier to evaluate.
+
+---
+
+# 26. Proposed authoritative TDD structure
+
+A project-level TDD should contain:
+
+## 1. Context and objective
+
+* user problem,
+* product scope,
+* non-goals,
+* current application constraints.
+
+## 2. Functional requirements
+
+* editor,
+* simulation,
+* learning,
+* evaluation,
+* persistence.
+
+## 3. Non-functional requirements
+
+* determinism,
+* performance,
+* compatibility,
+* accessibility,
+* security,
+* recoverability,
+* explainability.
+
+## 4. System architecture
+
+* runtime context,
+* module boundaries,
+* main-thread/worker separation,
+* state ownership.
+
+## 5. Domain model
+
+* architecture document,
+* components,
+* edges,
+* scenarios,
+* runs,
+* learning content,
+* attempts,
+* evaluations.
+
+## 6. Data flows
+
+* editing,
+* persistence,
+* import/export,
+* simulation,
+* challenge completion,
+* comparison.
+
+## 7. Contracts and schemas
+
+* schema versions,
+* migration rules,
+* worker protocol,
+* repository interfaces,
+* content validation.
+
+## 8. Simulation models
+
+* formulas,
+* assumptions,
+* caps,
+* unsupported behavior,
+* provenance.
+
+## 9. Security and privacy
+
+* import safety,
+* Markdown sanitization,
+* local storage,
+* future account boundary.
+
+## 10. Failure handling
+
+* worker crash,
+* storage failure,
+* invalid migration,
+* corrupt project,
+* quota exhaustion,
+* partial challenge state.
+
+## 11. Observability
+
+* application diagnostics,
+* simulation evidence,
+* support bundle.
+
+## 12. Testing and traceability
+
+* unit,
+* component,
+* engine,
+* migration,
+* E2E,
+* performance,
+* requirement-to-test matrix.
+
+## 13. Rollout and compatibility
+
+* release versions,
+* migration support,
+* feature flags,
+* rollback.
+
+## 14. Risks and unresolved decisions
+
+* explicit owners,
+* decision deadline,
+* impact.
+
+---
+
+# Final conclusion
+
+Blue Garden does not primarily lack features. It lacks a consolidated architectural contract that accurately reflects what is already implemented and controls how future features are added.
+
+The most important improvements are:
+
+1. establish one authoritative current specification;
+2. version simulation semantics, not only document schemas;
+3. add explicit architecture flows, API design, data models, and ADRs;
+4. formalize persistence, security, accessibility, and failure behavior;
+5. complete current editor gaps before expanding the component catalogue;
+6. build deterministic evaluation with applicability, evidence, exceptions, and confidence;
+7. require every new component to ship as a complete simulation-and-learning capability pack.
+
+**Confidence:** high for the document-level findings; medium for conclusions about actual code completeness because the repository itself was not inspected.
 # Codex Implementation Prompt: Expand Blue Garden into a Structured System-Design Learning and Simulation Platform
 
 ## Implementation status — first vertical slice

@@ -10,6 +10,7 @@ import {
   isSimulationLocked,
   useSimulationStore,
 } from '../simulation/simulationStore';
+import { LearningRunComparison } from './LearningRunComparison';
 
 type Controller = ReturnType<typeof useLearningController>;
 const worksheetFields: Array<[keyof CapacityWorksheet, string, number]> = [
@@ -274,6 +275,7 @@ export function LearningDrawer({ controller }: { controller: Controller }) {
             : 'Reveal and run incident'}
         </button>
       </section>
+      <LearningRunComparison attempt={attempt} />
       <footer>
         <button
           disabled={

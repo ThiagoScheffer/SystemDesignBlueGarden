@@ -265,7 +265,11 @@ export function runPreflight(
             `${event.id} targets a missing node.`,
           ),
         );
-      } else if (event.type === 'CACHE_BYPASS' && node.type !== 'cache') {
+      } else if (
+        (event.type === 'CACHE_BYPASS' ||
+          event.type === 'CACHE_KEY_EXPIRATION') &&
+        node.type !== 'cache'
+      ) {
         errors.push(
           finding(
             'error',

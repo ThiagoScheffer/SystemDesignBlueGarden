@@ -37,6 +37,7 @@ export type NoteType =
   | 'improvement';
 
 export type ShardStrategy = 'hash' | 'range' | 'directory';
+export type WorkerRole = 'general' | 'cache-refresh';
 
 export interface OperationalConfig {
   capacity: number;
@@ -51,6 +52,15 @@ export interface OperationalConfig {
   shardCount?: number;
   shardKey?: string;
   shardStrategy?: ShardStrategy;
+  ttlSeconds?: number;
+  staleWindowSeconds?: number;
+  ttlJitterPercent?: number;
+  requestCoalescing?: boolean;
+  cacheLocking?: boolean;
+  lockWaitTimeoutMs?: number;
+  lockTtlMs?: number;
+  backgroundRefresh?: boolean;
+  workerRole?: WorkerRole;
   [key: string]: string | number | boolean | undefined;
 }
 
@@ -124,7 +134,7 @@ export interface ProjectSettings {
 }
 
 export interface ArchitectureDocumentV1 {
-  schemaVersion: '1.3';
+  schemaVersion: '1.4';
   id: string;
   metadata: {
     name: string;
