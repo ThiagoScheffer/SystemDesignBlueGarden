@@ -7,7 +7,9 @@ import {
 
 const isFormControl = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
-  ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+  !!target.closest(
+    'input, textarea, select, button, a, [contenteditable="true"], [role="tabpanel"]',
+  );
 
 export function useEditorShortcuts() {
   useEffect(() => {
@@ -47,6 +49,7 @@ export function useEditorShortcuts() {
         state.selection?.kind === 'node'
       ) {
         event.preventDefault();
+        useSimulationStore.getState().closeDiagnostic();
         state.toggleInfoNode(state.selection.id);
         return;
       }

@@ -61,7 +61,7 @@ export function ComponentPalette() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search components"
+          placeholder="Search"
         />
       </label>
       <div className="palette-scroll">

@@ -1,5 +1,6 @@
 import { AlertTriangle, Plus, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useModalFocus } from '../../app/useModalFocus';
 import type { ArchitectureDocumentV1 } from '../../domain/architecture/types';
 import type {
   ScenarioEvent,
@@ -104,6 +105,8 @@ export function ScenarioDrawer({
 }) {
   const open = useSimulationStore((state) => state.drawerOpen);
   const setOpen = useSimulationStore((state) => state.setDrawerOpen);
+  const drawerRef = useRef<HTMLElement>(null);
+  useModalFocus(drawerRef, open, () => setOpen(false));
   const preflight = useSimulationStore((state) => state.preflight);
   const upsertScenario = useEditorStore((state) => state.upsertScenario);
   const initial = useMemo(
@@ -174,7 +177,13 @@ export function ScenarioDrawer({
 
   return (
     <div className="scenario-backdrop" role="presentation">
-      <aside className="scenario-drawer" aria-label="Scenario configuration">
+      <aside
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        className="scenario-drawer"
+        aria-label="Scenario configuration"
+      >
         <header>
           <div>
             <span className="eyebrow">Simulate</span>
@@ -464,9 +473,17 @@ export function ScenarioDrawer({
                   <AlertTriangle size={15} /> Preflight findings
                 </h3>
                 {[...preflight.errors, ...preflight.warnings].map((item) => (
-                  <p key={item.id} className={item.severity}>
-                    {item.message}
-                  </p>
+                  <article
+                    key={item.id}
+                    className={`preflight-entry ${item.severity}`}
+                  >
+                    <span className="severity-label">
+                      {item.severity === 'error'
+                        ? 'Error — must resolve'
+                        : 'Modeling warning'}
+                    </span>
+                    <p className={item.severity}>{item.message}</p>
+                  </article>
                 ))}
                 {preflight.warnings.length > 0 &&
                   preflight.errors.length === 0 && (

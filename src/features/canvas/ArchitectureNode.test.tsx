@@ -8,6 +8,7 @@ import {
   type ArchitectureFlowNode,
 } from './ArchitectureNode';
 import { useEditorStore } from './editorStore';
+import { InspectorHost } from '../inspector/InspectorHost';
 import { useSimulationStore } from '../simulation/simulationStore';
 
 vi.mock('@xyflow/react', () => ({
@@ -15,15 +16,24 @@ vi.mock('@xyflow/react', () => ({
   Position: { Left: 'left', Right: 'right' },
 }));
 
-const renderNode = (node: ArchitectureFlowNode['data']['architecture']) =>
-  render(
-    <ArchitectureNode
-      {...({
-        data: { architecture: node },
-        selected: true,
-      } as NodeProps<ArchitectureFlowNode>)}
-    />,
+const renderNode = (node: ArchitectureFlowNode['data']['architecture']) => {
+  const document = useEditorStore.getState().document;
+  if (!document.nodes.some((entry) => entry.id === node.id))
+    useEditorStore.setState({
+      document: { ...document, nodes: [...document.nodes, node] },
+    });
+  return render(
+    <>
+      <ArchitectureNode
+        {...({
+          data: { architecture: node },
+          selected: true,
+        } as NodeProps<ArchitectureFlowNode>)}
+      />
+      <InspectorHost />
+    </>,
   );
+};
 
 const showMetric = (nodeId: string, overrides: Partial<NodeMetric> = {}) => {
   const nodeMetric: NodeMetric = {
@@ -195,11 +205,13 @@ describe('ArchitectureNode education', () => {
       screen.getByLabelText('Show Load balancer failing requests'),
     );
     const details = screen.getByLabelText('Load balancer error details');
-    expect(details).toHaveTextContent('FAILING REQUESTS');
+    expect(details).toHaveTextContent('Failing requests');
     expect(details).toHaveTextContent(
-      'Connections dropped69% rejected at capacity',
+      'Connections droppedcritical69% rejected at capacity',
     );
-    expect(details).toHaveTextContent('Server errors12% of requests failing');
+    expect(details).toHaveTextContent(
+      'Server errorscritical12% of requests failing',
+    );
     expect(details).toHaveTextContent(
       'Likely causeCapacity saturation: 320% of configured capacity is demanded.',
     );
@@ -231,7 +243,54 @@ describe('ArchitectureNode education', () => {
     fireEvent.click(
       screen.getByLabelText('Show Application server failing requests'),
     );
-    expect(screen.getByText('FAILING REQUESTS')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Failing requests' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Suggested corrections')).not.toBeInTheDocument();
+  });
+
+  it('keeps an open diagnostic readable when the live finding clears, until reset', () => {
+    const service = createArchitectureNode('application-server', {
+      x: 0,
+      y: 0,
+    });
+    showMetric(service.id);
+    renderNode(service);
+    fireEvent.click(
+      screen.getByLabelText('Show Application server failing requests'),
+    );
+    act(() => {
+      const tick = useSimulationStore.getState().ticks.at(-1)!;
+      useSimulationStore.getState().addTick('node-test', {
+        ...tick,
+        second: 2,
+        nodes: { [service.id]: { ...tick.nodes[service.id], diagnostics: [] } },
+      });
+    });
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'No current findings for this category.',
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Failing requests' }),
+    ).toBeInTheDocument();
+    act(() => useSimulationStore.getState().reset());
+    expect(
+      screen.queryByRole('heading', { name: 'Failing requests' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('restores the inspector mode after a temporary component guide', () => {
+    useEditorStore.getState().addNode('cache');
+    const cache = useEditorStore.getState().document.nodes[0];
+    renderNode(cache);
+    fireEvent.click(screen.getByRole('button', { name: 'Advanced' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Component guide' }));
+    expect(screen.getByLabelText('Cache information')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Close component information' }),
+    );
+    expect(screen.getByRole('button', { name: 'Advanced' })).toHaveClass(
+      'is-active',
+    );
   });
 });

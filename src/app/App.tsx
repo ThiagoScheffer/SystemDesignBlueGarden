@@ -2,7 +2,10 @@ import { ArchitectureCanvas } from '../features/canvas/ArchitectureCanvas';
 import { useEditorStore } from '../features/canvas/editorStore';
 import { ComponentPalette } from '../features/component-library/ComponentPalette';
 import { useEditorShortcuts } from '../features/history/useEditorShortcuts';
-import { Inspector } from '../features/inspector/Inspector';
+import { InspectorHost } from '../features/inspector/InspectorHost';
+import { usePresentationStore } from './presentationStore';
+import { useSimulationStore } from '../features/simulation/simulationStore';
+import { useEffect, useRef } from 'react';
 import { TopBar } from '../features/projects/TopBar';
 import { useProjectPersistence } from '../features/projects/useProjectPersistence';
 import { ScenarioDrawer } from '../features/scenarios/ScenarioDrawer';
@@ -19,6 +22,26 @@ export function App() {
   const simulation = useSimulationController(document);
   const learning = useLearningController(document, simulation.start);
   useEditorShortcuts();
+  const readingView = usePresentationStore((state) => state.readingView);
+  const setReadingView = usePresentationStore((state) => state.setReadingView);
+  const diagnostic = useSimulationStore((state) => state.activeDiagnostic);
+  const infoNodeId = useEditorStore((state) => state.expandedInfoNodeId);
+  const hasDetails = !!diagnostic || !!infoNodeId;
+  const previousProject = useRef(document.id);
+  const resetSimulation = simulation.reset;
+  useEffect(() => {
+    if (previousProject.current !== document.id) {
+      resetSimulation();
+      setReadingView('canvas');
+      previousProject.current = document.id;
+    }
+  }, [document.id, setReadingView, resetSimulation]);
+  const backToCanvas = () => {
+    useEditorStore.getState().commitTransaction();
+    useEditorStore.getState().closeInfoNode();
+    useSimulationStore.getState().closeDiagnostic();
+    setReadingView('canvas');
+  };
 
   return (
     <div className="app-shell">
@@ -28,21 +51,48 @@ export function App() {
           <SimulationControls document={document} {...simulation} />
         }
       />
-      <div className="app-main">
-        <div className="workspace">
-          <ComponentPalette />
+      <nav className="workspace-navigation" aria-label="Workspace panels">
+        <button
+          type="button"
+          aria-pressed={readingView === 'components'}
+          onClick={() => {
+            backToCanvas();
+            setReadingView(
+              readingView === 'components' ? 'canvas' : 'components',
+            );
+          }}
+        >
+          Components
+        </button>
+        <button
+          type="button"
+          className="inspector-navigation"
+          aria-pressed={readingView === 'inspector' || hasDetails}
+          onClick={() => setReadingView('inspector')}
+        >
+          Inspector
+        </button>
+        <button type="button" onClick={backToCanvas}>
+          Back to canvas
+        </button>
+      </nav>
+      <div
+        className={`app-main reading-${hasDetails ? 'inspector' : readingView}`}
+      >
+        <div
+          className={`workspace ${hasDetails ? 'has-details' : ''} ${readingView === 'components' ? 'components-open' : ''}`}
+        >
+          <div className="palette-host">
+            <ComponentPalette />
+          </div>
           <ArchitectureCanvas />
-          <Inspector />
+          <InspectorHost />
         </div>
         <SimulationPanel onReset={simulation.reset} />
       </div>
       <ScenarioDrawer document={document} start={simulation.start} />
       <LearningHub controller={learning} />
       <LearningDrawer controller={learning} />
-      <div className="viewport-warning">
-        <strong>Blue Garden needs a wider canvas.</strong>
-        <span>Open the editor on a desktop or a larger browser window.</span>
-      </div>
     </div>
   );
 }

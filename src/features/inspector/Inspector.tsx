@@ -90,6 +90,10 @@ export function Inspector() {
   const deleteSelection = useEditorStore((state) => state.deleteSelection);
   const simulationStatus = useSimulationStore((state) => state.status);
   const locked = isSimulationLocked(simulationStatus);
+  const latestTick = useSimulationStore((state) => state.ticks.at(-1));
+  const toggleDiagnostic = useSimulationStore(
+    (state) => state.toggleDiagnostic,
+  );
   const projectFindings = assessProject(document);
   const activeAttempt = useLearningStore((state) => state.activeAttempt);
 
@@ -175,6 +179,30 @@ export function Inspector() {
         <div
           className={`inspector-form ${effectiveMode === 'learning' ? 'is-learning' : ''}`}
         >
+          <div className="inspector-detail-actions">
+            <button
+              type="button"
+              onClick={() => useEditorStore.getState().toggleInfoNode(node.id)}
+            >
+              Component guide
+            </button>
+            {(['error', 'bottleneck'] as const).map(
+              (category) =>
+                latestTick?.nodes[node.id]?.diagnostics.some(
+                  (entry) => entry.category === category,
+                ) && (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => toggleDiagnostic(node.id, category)}
+                  >
+                    {category === 'error'
+                      ? 'Failing requests'
+                      : 'Bottleneck details'}
+                  </button>
+                ),
+            )}
+          </div>
           <div className="selection-summary">
             <span
               className="selection-dot"

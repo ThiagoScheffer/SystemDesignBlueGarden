@@ -1,18 +1,11 @@
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { AlertTriangle, Gauge, X } from 'lucide-react';
+import { AlertTriangle, Gauge } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ArchitectureNodeV1 } from '../../domain/architecture/types';
 import { componentDefinitionMap } from '../../domain/components/definitions';
-import {
-  getLearningTips,
-  rankLearningResources,
-} from '../../domain/simulation/learningTips';
 import { iconMap } from '../component-library/iconMap';
 import { useEditorStore } from './editorStore';
-import {
-  isSimulationLocked,
-  useSimulationStore,
-} from '../simulation/simulationStore';
+import { useSimulationStore } from '../simulation/simulationStore';
 
 export type ArchitectureFlowNode = Node<
   {
@@ -31,7 +24,6 @@ export function ArchitectureNode({
   selected,
 }: NodeProps<ArchitectureFlowNode>) {
   const node = data.architecture;
-  const document = useEditorStore((state) => state.document);
   const definition = componentDefinitionMap[node.type];
   const Icon = iconMap[definition.icon];
   const isNote = node.type === 'note';
@@ -40,57 +32,27 @@ export function ArchitectureNode({
     (state) => state.expandedInfoNodeId,
   );
   const closeInfoNode = useEditorStore((state) => state.closeInfoNode);
-  const beginTransaction = useEditorStore((state) => state.beginTransaction);
-  const commitTransaction = useEditorStore((state) => state.commitTransaction);
-  const updateNodeTransient = useEditorStore(
-    (state) => state.updateNodeTransient,
-  );
   const [showTooltip, setShowTooltip] = useState(false);
   const hoverTimer = useRef<number | null>(null);
   const infoOpen = expandedInfoNodeId === node.id;
   const metric = useSimulationStore(
     (state) => state.ticks.at(-1)?.nodes[node.id],
   );
-  const simulationStatus = useSimulationStore((state) => state.status);
   const activeDiagnostic = useSimulationStore(
     (state) => state.activeDiagnostic,
   );
   const toggleDiagnostic = useSimulationStore(
     (state) => state.toggleDiagnostic,
   );
-  const closeDiagnostic = useSimulationStore((state) => state.closeDiagnostic);
-  const learningTipsEnabled = useSimulationStore(
-    (state) => state.learningTipsEnabled,
-  );
-  const simulationLocked = isSimulationLocked(simulationStatus);
   const diagnosticOpen = activeDiagnostic?.nodeId === node.id;
   const errorDiagnostics =
     metric?.diagnostics.filter((entry) => entry.category === 'error') ?? [];
   const bottleneckDiagnostics =
     metric?.diagnostics.filter((entry) => entry.category === 'bottleneck') ??
     [];
-  const displayedDiagnostics =
-    activeDiagnostic?.category === 'error'
-      ? errorDiagnostics
-      : bottleneckDiagnostics;
   const criticalBottleneck = bottleneckDiagnostics.some(
     (entry) => entry.severity === 'critical',
   );
-  const likelyCauses =
-    activeDiagnostic?.category === 'error'
-      ? bottleneckDiagnostics.filter(
-          (entry) =>
-            entry.code === 'capacity-saturation' ||
-            entry.code === 'queue-growth',
-        )
-      : [];
-  const contextualTips = getLearningTips(displayedDiagnostics);
-  const learningResourcesForNode = rankLearningResources(
-    document,
-    node,
-    displayedDiagnostics,
-  );
-
   const clearHover = () => {
     if (hoverTimer.current !== null) {
       window.clearTimeout(hoverTimer.current);
@@ -118,29 +80,12 @@ export function ArchitectureNode({
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [infoOpen]);
-  useEffect(() => {
-    if (!diagnosticOpen) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeDiagnostic();
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [closeDiagnostic, diagnosticOpen]);
-  useEffect(() => {
-    if (diagnosticOpen && displayedDiagnostics.length === 0) closeDiagnostic();
-  }, [closeDiagnostic, diagnosticOpen, displayedDiagnostics.length]);
-
   const startHover = () => {
-    if (infoOpen) return;
+    if (infoOpen || diagnosticOpen) return;
     hoverTimer.current = window.setTimeout(() => {
       setShowTooltip(true);
       hoverTimer.current = null;
     }, 1000);
-  };
-
-  const commitAndClose = () => {
-    commitTransaction();
-    closeInfoNode();
   };
 
   return (
@@ -219,6 +164,9 @@ export function ArchitectureNode({
                 onClick={(event) => {
                   event.stopPropagation();
                   closeInfoNode();
+                  useEditorStore
+                    .getState()
+                    .select({ kind: 'node', id: node.id });
                   toggleDiagnostic(node.id, 'error');
                 }}
               >
@@ -236,6 +184,9 @@ export function ArchitectureNode({
                 onClick={(event) => {
                   event.stopPropagation();
                   closeInfoNode();
+                  useEditorStore
+                    .getState()
+                    .select({ kind: 'node', id: node.id });
                   toggleDiagnostic(node.id, 'bottleneck');
                 }}
               >
@@ -245,88 +196,7 @@ export function ArchitectureNode({
           </div>
         )}
 
-      {diagnosticOpen && displayedDiagnostics.length > 0 && (
-        <section
-          className={`node-diagnostic-popover nodrag nopan nowheel diagnostic-${activeDiagnostic.category}`}
-          aria-label={`${node.data.label} ${activeDiagnostic.category} details`}
-          onClick={(event) => event.stopPropagation()}
-          onDoubleClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <header>
-            <div>
-              <span>Live diagnostic</span>
-              <h3>
-                {activeDiagnostic.category === 'error'
-                  ? 'FAILING REQUESTS'
-                  : 'BOTTLENECK DETAILS'}
-              </h3>
-            </div>
-            <button
-              type="button"
-              aria-label="Close diagnostic details"
-              onClick={closeDiagnostic}
-            >
-              <X aria-hidden="true" size={15} />
-            </button>
-          </header>
-          <div className="diagnostic-list">
-            {displayedDiagnostics.map((entry) => (
-              <article key={entry.id} className={`severity-${entry.severity}`}>
-                <strong>{entry.title}</strong>
-                <p>{entry.explanation}</p>
-                {entry.affectedRps > 0 && (
-                  <small>
-                    {entry.affectedRps.toLocaleString(undefined, {
-                      maximumFractionDigits: 1,
-                    })}{' '}
-                    affected req/s
-                  </small>
-                )}
-              </article>
-            ))}
-          </div>
-          {likelyCauses.length > 0 && (
-            <div className="diagnostic-likely-cause">
-              <span>Likely cause</span>
-              {likelyCauses.map((entry) => (
-                <p key={entry.id}>
-                  <strong>{entry.title}:</strong> {entry.explanation}
-                </p>
-              ))}
-            </div>
-          )}
-          {learningTipsEnabled && (
-            <div className="diagnostic-learning">
-              <span>Suggested corrections</span>
-              {contextualTips.map((tip) => (
-                <div key={tip.topic}>
-                  <p>{tip.summary}</p>
-                  <ul>
-                    {tip.actions.map((action) => (
-                      <li key={action}>{action}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-              <div className="diagnostic-resources">
-                {learningResourcesForNode.map((resource) => (
-                  <a
-                    key={resource.id}
-                    href={resource.url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                  >
-                    Study: {resource.label}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {showTooltip && !infoOpen && (
+      {showTooltip && !infoOpen && !diagnosticOpen && (
         <div className="node-tooltip" role="tooltip">
           <strong>{definition.label}</strong>
           <p>{definition.education.summary}</p>
@@ -334,76 +204,6 @@ export function ArchitectureNode({
           <p>{definition.education.example}</p>
           <small>Double-click for details</small>
         </div>
-      )}
-
-      {infoOpen && (
-        <section
-          className="node-info-card nodrag nopan nowheel"
-          aria-label={`${definition.label} information`}
-          onDoubleClick={(event) => event.stopPropagation()}
-        >
-          <header>
-            <div>
-              <span>Component guide</span>
-              <h3>{definition.label}</h3>
-            </div>
-            <button
-              type="button"
-              aria-label="Close component information"
-              onClick={commitAndClose}
-            >
-              <X aria-hidden="true" size={15} />
-            </button>
-          </header>
-          <p>{definition.education.summary}</p>
-          <div className="node-info-example">
-            <span>Example</span>
-            <p>{definition.education.example}</p>
-          </div>
-
-          {node.type === 'cache' && (
-            <label className="node-info-slider">
-              <span>
-                Cache hit rate{' '}
-                <strong>{node.data.config.hitRatePercent}%</strong>
-              </span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value={node.data.config.hitRatePercent ?? 80}
-                disabled={simulationLocked}
-                onFocus={beginTransaction}
-                onPointerDown={beginTransaction}
-                onChange={(event) =>
-                  updateNodeTransient(node.id, {
-                    config: { hitRatePercent: Number(event.target.value) },
-                  })
-                }
-                onBlur={commitTransaction}
-                onPointerUp={commitTransaction}
-              />
-            </label>
-          )}
-
-          <label className="node-info-notes">
-            <span>Implementation notes</span>
-            <textarea
-              rows={4}
-              placeholder="Add decisions, constraints, or implementation details…"
-              value={node.data.implementationNotes ?? ''}
-              disabled={simulationLocked}
-              onFocus={beginTransaction}
-              onChange={(event) =>
-                updateNodeTransient(node.id, {
-                  implementationNotes: event.target.value,
-                })
-              }
-              onBlur={commitTransaction}
-            />
-          </label>
-        </section>
       )}
     </div>
   );

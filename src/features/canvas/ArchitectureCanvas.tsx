@@ -75,6 +75,10 @@ export function ArchitectureCanvas() {
     Edge
   > | null>(null);
   const simulationStatus = useSimulationStore((state) => state.status);
+  const [mapExpanded, setMapExpanded] = useState<boolean | null>(null);
+  const showMap =
+    mapExpanded ??
+    (simulationStatus === 'idle' || simulationStatus === 'preflight');
   const latestTick = useSimulationStore((state) => state.ticks.at(-1));
   const activeDiagnostic = useSimulationStore(
     (state) => state.activeDiagnostic,
@@ -225,15 +229,19 @@ export function ArchitectureCanvas() {
   };
 
   const selectNode: NodeMouseHandler<ArchitectureFlowNode> = (_, node) => {
-    if (activeDiagnostic?.nodeId !== node.id) closeDiagnostic();
+    closeDiagnostic();
+    useEditorStore.getState().commitTransaction();
+    useEditorStore.getState().closeInfoNode();
     select({ kind: 'node', id: node.id });
   };
   const showNodeInfo: NodeMouseHandler<ArchitectureFlowNode> = (_, node) => {
     closeDiagnostic();
     toggleInfoNode(node.id);
   };
-  const selectEdge: EdgeMouseHandler = (_, edge) =>
+  const selectEdge: EdgeMouseHandler = (_, edge) => {
+    closeDiagnostic();
     select({ kind: 'edge', id: edge.id });
+  };
   const contextEdge: EdgeMouseHandler = (event, edge) => {
     event.preventDefault();
     setLabelDraft(
@@ -319,23 +327,33 @@ export function ArchitectureCanvas() {
         colorMode="dark"
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-        <MiniMap<ArchitectureFlowNode>
-          pannable
-          zoomable
-          ariaLabel="Architecture overview map"
-          bgColor="#0c1714"
-          maskColor="rgba(7, 16, 14, 0.22)"
-          maskStrokeColor="#466057"
-          maskStrokeWidth={1.5}
-          nodeColor={(node) =>
-            componentDefinitionMap[node.data.architecture.type].color
-          }
-          nodeStrokeColor="#d9e3df"
-          nodeStrokeWidth={1.5}
-          nodeBorderRadius={3}
-        />
-        <Controls showInteractive={false} />
+        {showMap && (
+          <MiniMap<ArchitectureFlowNode>
+            pannable
+            zoomable
+            ariaLabel="Architecture overview map"
+            bgColor="#0c1714"
+            maskColor="rgba(7, 16, 14, 0.22)"
+            maskStrokeColor="#466057"
+            maskStrokeWidth={1.5}
+            nodeColor={(node) =>
+              componentDefinitionMap[node.data.architecture.type].color
+            }
+            nodeStrokeColor="#d9e3df"
+            nodeStrokeWidth={1.5}
+            nodeBorderRadius={3}
+          />
+        )}
+        <Controls showInteractive={false} fitViewOptions={{ padding: 0.3 }} />
       </ReactFlow>
+      <button
+        className="map-toggle"
+        type="button"
+        aria-expanded={showMap}
+        onClick={() => setMapExpanded(!showMap)}
+      >
+        {showMap ? 'Hide map' : 'Show map'}
+      </button>
       {document.nodes.length === 0 && (
         <div className="canvas-empty" aria-hidden="true">
           <span>Start your architecture</span>
