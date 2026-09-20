@@ -15,6 +15,8 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { autoLayout } from './autoLayout';
+import { usePresentationStore } from '../../app/presentationStore';
 import type { ComponentType } from '../../domain/architecture/types';
 import { componentDefinitionMap } from '../../domain/components/definitions';
 import { computeAffectedEdgeStates } from '../../domain/simulation/diagnostics';
@@ -31,6 +33,7 @@ import {
 const nodeTypes: NodeTypes = { architecture: ArchitectureNode };
 
 export function ArchitectureCanvas() {
+  const theme = usePresentationStore((state) => state.theme);
   const document = useEditorStore((state) => state.document);
   const selection = useEditorStore((state) => state.selection);
   const addNode = useEditorStore((state) => state.addNode);
@@ -324,7 +327,7 @@ export function ArchitectureCanvas() {
         maxZoom={2}
         deleteKeyCode={null}
         defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-        colorMode="dark"
+        colorMode={theme}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
         {showMap && (
@@ -332,20 +335,50 @@ export function ArchitectureCanvas() {
             pannable
             zoomable
             ariaLabel="Architecture overview map"
-            bgColor="#0c1714"
-            maskColor="rgba(7, 16, 14, 0.22)"
-            maskStrokeColor="#466057"
+            bgColor="var(--surface)"
+            maskColor="color-mix(in srgb, var(--bg) 22%, transparent)"
+            maskStrokeColor="var(--border-bright)"
             maskStrokeWidth={1.5}
             nodeColor={(node) =>
               componentDefinitionMap[node.data.architecture.type].color
             }
-            nodeStrokeColor="#d9e3df"
+            nodeStrokeColor="var(--text)"
             nodeStrokeWidth={1.5}
             nodeBorderRadius={3}
           />
         )}
         <Controls showInteractive={false} fitViewOptions={{ padding: 0.3 }} />
       </ReactFlow>
+      <button
+        type="button"
+        className="arrange-button"
+        disabled={locked || document.nodes.length < 2}
+        onClick={() => {
+          commitTransaction();
+          const measured = instance?.getNodes() || [];
+          useEditorStore.getState().applyPositions(
+            autoLayout(
+              document.nodes.map((n) => ({
+                id: n.id,
+                width: measured.find((m) => m.id === n.id)?.measured?.width,
+                height: measured.find((m) => m.id === n.id)?.measured?.height,
+              })),
+              document.edges,
+            ),
+          );
+          requestAnimationFrame(() => {
+            void instance?.fitView({
+              padding: 0.25,
+              duration: window.matchMedia('(prefers-reduced-motion: reduce)')
+                .matches
+                ? 0
+                : 250,
+            });
+          });
+        }}
+      >
+        Auto-arrange
+      </button>
       <button
         className="map-toggle"
         type="button"

@@ -1,4 +1,5 @@
 import { Search } from 'lucide-react';
+import { usePresentationStore } from '../../app/presentationStore';
 import { useMemo, useState } from 'react';
 import type { ComponentType } from '../../domain/architecture/types';
 import { componentDefinitions } from '../../domain/components/definitions';
@@ -54,6 +55,17 @@ export function ComponentPalette() {
           <h2>Components</h2>
         </div>
         <span className="count-badge">{componentDefinitions.length}</span>
+        <button
+          type="button"
+          className="button-compact"
+          aria-label="Hide Components"
+          onClick={() => {
+            usePresentationStore.getState().togglePanel('components');
+            document.getElementById('components-toggle')?.focus();
+          }}
+        >
+          Hide
+        </button>
       </div>
       <label className="search-field">
         <Search aria-hidden="true" size={15} />

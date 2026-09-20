@@ -112,7 +112,7 @@ test('completes a guided learning attempt and opens neutral evidence', async ({
   });
   await expect(drawer).toBeVisible();
   await expect(page.getByLabel('Architecture name')).toHaveValue(
-    'URL Shortener — Starter',
+    'URL Shortener - Starter',
   );
   await drawer.getByRole('button', { name: 'Reveal and run incident' }).click();
   await expect(drawer.getByText('Incident run completed')).toBeVisible({
@@ -159,7 +159,7 @@ test('creates a template as a separate local project', async ({ page }) => {
   await hub.getByRole('button', { name: 'templates' }).click();
   await hub.getByRole('button', { name: 'Create project' }).first().click();
   await expect(page.getByLabel('Architecture name')).toHaveValue(
-    'URL Shortener — Starter',
+    'URL Shortener - Starter',
   );
   const projectCount = await page.evaluate(async () => {
     const request = indexedDB.open('blue-garden');
@@ -207,12 +207,20 @@ test('compares unprotected and coalesced cache-expiration runs', async ({
     .filter({ hasText: 'Cache peak origin RPS' });
   await expect(originRow).toContainText('9,200');
 
+  await drawer
+    .getByRole('button', { name: 'Close learning workspace' })
+    .click();
   await page.getByLabel('Cache architecture component').click();
   await page.getByRole('button', { name: 'Learning', exact: true }).click();
   await expect(page.getByText('Cache stampede', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Basic', exact: true }).click();
   await page.getByLabel('Request coalescing').check();
 
+  await page
+    .getByRole('button', {
+      name: 'Open Prevent a Cache Stampede learning workspace',
+    })
+    .click();
   await drawer.getByRole('button', { name: 'Run incident again' }).click();
   await page.getByLabel('Simulation speed').selectOption('MAX');
   await expect(drawer.locator('.run-selectors option')).toHaveCount(4, {

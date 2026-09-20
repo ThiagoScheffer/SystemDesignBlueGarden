@@ -17,6 +17,7 @@ export type EditorSelection =
   { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null;
 
 interface EditorState {
+  applyPositions: (positions: Record<string, { x: number; y: number }>) => void;
   document: ArchitectureDocumentV1;
   selection: EditorSelection;
   expandedInfoNodeId: string | null;
@@ -164,6 +165,22 @@ const documentContent = (document: ArchitectureDocumentV1) =>
   });
 
 export const useEditorStore = create<EditorState>((set) => ({
+  applyPositions: (positions) =>
+    set((state) => {
+      const changed = state.document.nodes.some(
+        (n) =>
+          positions[n.id] &&
+          (positions[n.id].x !== n.position.x ||
+            positions[n.id].y !== n.position.y),
+      );
+      if (!changed) return state;
+      return withHistory(state, {
+        ...state.document,
+        nodes: state.document.nodes.map((n) =>
+          positions[n.id] ? { ...n, position: positions[n.id] } : n,
+        ),
+      });
+    }),
   document: createArchitectureDocument(),
   selection: null,
   expandedInfoNodeId: null,

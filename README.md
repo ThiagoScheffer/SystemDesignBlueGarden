@@ -39,6 +39,8 @@ Instead of drawing a static diagram, you model a system with typed components, r
 ### Model
 
 - Compose architectures on an infinite React Flow canvas.
+- Switch between light and dark blue themes, and hide either sidebar to make more room for the canvas.
+- Auto-arrange connected nodes from left to right with consistent spacing and one-step undo.
 - Choose from 16 typed system components, including clients, gateways, caches, queues, databases, workers, sharding routers, and monitoring services.
 - Configure operational behavior through Basic and Advanced inspector panels.
 - Create, reconnect, label, reverse, duplicate, monitor, disable, and disconnect directed connections.
@@ -51,6 +53,7 @@ Instead of drawing a static diagram, you model a system with typed components, r
 - Explore capacity, throughput, latency, queue backlog, cache behavior, sharding, failure, retry amplification, and estimated cost.
 - Control presentation speed at `1×`, `4×`, `16×`, or `MAX` while keeping the underlying run deterministic.
 - Follow live canvas overlays, KPI timelines, event logs, and explainable bottleneck findings.
+- Resize the results panel by dragging its upper edge or using the keyboard; workspace preferences are remembered locally.
 
 ### Learn
 

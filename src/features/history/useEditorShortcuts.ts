@@ -8,7 +8,7 @@ import {
 const isFormControl = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   !!target.closest(
-    'input, textarea, select, button, a, [contenteditable="true"], [role="tabpanel"]',
+    'input, textarea, select, button, a, [contenteditable="true"], [role="tabpanel"], [role="separator"]',
   );
 
 export function useEditorShortcuts() {

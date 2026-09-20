@@ -23,6 +23,7 @@ import {
 import { ProjectSettingsDrawer } from './ProjectSettingsDrawer';
 import { useLearningStore } from '../learning/learningStore';
 import { ChallengeHud } from '../learning/ChallengeHud';
+import { usePresentationStore } from '../../app/presentationStore';
 
 export function TopBar({
   saveStatus,
@@ -32,6 +33,7 @@ export function TopBar({
   simulationControls?: ReactNode;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const theme = usePresentationStore((state) => state.theme);
   const [importError, setImportError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const document = useEditorStore((state) => state.document);
@@ -90,6 +92,17 @@ export function TopBar({
         <ChallengeHud />
       </div>
       <nav className="toolbar" aria-label="Architecture actions">
+        <button
+          type="button"
+          onClick={() =>
+            usePresentationStore
+              .getState()
+              .setTheme(theme === 'dark' ? 'light' : 'dark')
+          }
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+        >
+          Theme: {theme === 'dark' ? 'Dark' : 'Light'}
+        </button>
         <button
           type="button"
           onClick={newDocument}

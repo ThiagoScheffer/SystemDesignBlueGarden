@@ -1,5 +1,5 @@
-import { Activity, AlertTriangle } from 'lucide-react';
-import { useState, type KeyboardEvent } from 'react';
+import { Activity, AlertTriangle, RotateCcw } from 'lucide-react';
+import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { useEditorStore } from '../canvas/editorStore';
 import { usePresentationStore } from '../../app/presentationStore';
 import { useSimulationStore } from './simulationStore';
@@ -52,6 +52,34 @@ export function SimulationPanel({ onReset }: { onReset: () => void }) {
 }
 
 function SimulationResults({ onReset }: { onReset: () => void }) {
+  const panel = useRef<HTMLElement>(null);
+  const drag = useRef<{ y: number; height: number } | null>(null);
+  const ratio = usePresentationStore((state) => state.resultsRatio);
+  const [available, setAvailable] = useState(800);
+  useEffect(() => {
+    const parent = panel.current?.parentElement;
+    if (!parent) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setAvailable(parent.clientHeight));
+    });
+    observer.observe(parent);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  const min = available >= 340 ? 180 : available * 0.3;
+  const max = available >= 340 ? available - 160 : available * 0.7;
+  const resize = (height: number) => {
+    setSize('normal');
+    usePresentationStore
+      .getState()
+      .setResultsRatio(
+        Math.max(min, Math.min(max, height)) / Math.max(1, available),
+      );
+  };
   const [tab, setTab] = useState<ResultsTab>('Overview');
   const [size, setSize] = useState<'normal' | 'expanded' | 'collapsed'>(
     'normal',
@@ -114,9 +142,75 @@ function SimulationResults({ onReset }: { onReset: () => void }) {
   };
   return (
     <section
+      ref={panel}
+      style={
+        size === 'collapsed'
+          ? undefined
+          : {
+              flexBasis: Math.max(
+                min,
+                Math.min(max, available * (size === 'expanded' ? 0.65 : ratio)),
+              ),
+              minHeight: 0,
+            }
+      }
       className={`simulation-panel results-${size}`}
       aria-label="Simulation results"
     >
+      {size !== 'collapsed' && (
+        <div
+          className="results-resizer"
+          role="separator"
+          aria-label="Resize simulation results"
+          aria-orientation="horizontal"
+          tabIndex={0}
+          aria-valuemin={Math.round(min)}
+          aria-valuemax={Math.round(max)}
+          aria-valuenow={Math.round(
+            Math.max(
+              min,
+              Math.min(max, available * (size === 'expanded' ? 0.65 : ratio)),
+            ),
+          )}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            drag.current = {
+              y: event.clientY,
+              height: panel.current!.getBoundingClientRect().height,
+            };
+          }}
+          onPointerMove={(event) => {
+            if (drag.current)
+              resize(drag.current.height + drag.current.y - event.clientY);
+          }}
+          onPointerUp={() => {
+            drag.current = null;
+          }}
+          onPointerCancel={() => {
+            drag.current = null;
+          }}
+          onLostPointerCapture={() => {
+            drag.current = null;
+          }}
+          onKeyDown={(event) => {
+            const height = panel.current!.getBoundingClientRect().height;
+            const next =
+              event.key === 'ArrowUp'
+                ? height + 20
+                : event.key === 'ArrowDown'
+                  ? height - 20
+                  : event.key === 'Home'
+                    ? min
+                    : event.key === 'End'
+                      ? max
+                      : null;
+            if (next !== null) {
+              event.preventDefault();
+              resize(next);
+            }
+          }}
+        />
+      )}
       <header>
         <div>
           <Activity aria-hidden="true" size={18} />
@@ -149,7 +243,12 @@ function SimulationResults({ onReset }: { onReset: () => void }) {
           >
             {size === 'expanded' ? 'Restore size' : 'Expand'}
           </button>
-          <button type="button" onClick={onReset}>
+          <button
+            type="button"
+            className="button-primary reset-simulation"
+            onClick={onReset}
+          >
+            <RotateCcw size={16} aria-hidden="true" />
             Reset simulation
           </button>
         </div>
@@ -230,8 +329,28 @@ function SimulationResults({ onReset }: { onReset: () => void }) {
             {tab === 'Overview' &&
               (global ? (
                 <div className="timeline-card">
-                    <p>Engine {summary?.engineVersion ?? (summary ? 'legacy (unversioned)' : '2.0.0')}</p>
-                    {Object.entries(ticks.at(-1)?.workloads ?? summary?.workloads ?? {}).map(([kind, metric]) => <div key={kind} style={{ flexWrap: 'wrap', gap: '0.5rem' }}><strong>{kind === 'read' ? 'Reads / redirects' : 'Writes / creation'}</strong><span>{format(metric.generatedRps)} offered; {format(metric.successfulRps)} successful; {format(metric.failedRps)} failed req/s; P95 {format(metric.p95LatencyMs)} ms</span></div>)}
+                  <p>
+                    Engine{' '}
+                    {summary?.engineVersion ??
+                      (summary ? 'legacy (unversioned)' : '2.0.0')}
+                  </p>
+                  {Object.entries(
+                    ticks.at(-1)?.workloads ?? summary?.workloads ?? {},
+                  ).map(([kind, metric]) => (
+                    <div key={kind} style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <strong>
+                        {kind === 'read'
+                          ? 'Reads / redirects'
+                          : 'Writes / creation'}
+                      </strong>
+                      <span>
+                        {format(metric.generatedRps)} offered;{' '}
+                        {format(metric.successfulRps)} successful;{' '}
+                        {format(metric.failedRps)} failed req/s; P95{' '}
+                        {format(metric.p95LatencyMs)} ms
+                      </span>
+                    </div>
+                  ))}
                   <div>
                     <span>Traffic</span>
                     <strong>{format(global.generatedRps, ' req/s')}</strong>

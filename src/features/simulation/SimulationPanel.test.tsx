@@ -3,11 +3,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SimulationPanel } from './SimulationPanel';
 import { useSimulationStore } from './simulationStore';
 import { useEditorStore } from '../canvas/editorStore';
+import { usePresentationStore } from '../../app/presentationStore';
 
 describe('simulation results reading states', () => {
   beforeEach(() => {
+    usePresentationStore.getState().setResultsRatio(0.4);
     useEditorStore.getState().newDocument();
     useSimulationStore.getState().reset();
+  });
+
+  it('resizes by keyboard, restores custom height and retains it across runs', () => {
+    useSimulationStore.getState().started('resize-run');
+    render(<SimulationPanel onReset={vi.fn()} />);
+    const separator = screen.getByRole('separator');
+    fireEvent.keyDown(separator, { key: 'End' });
+    expect(usePresentationStore.getState().resultsRatio).toBe(0.8);
+    fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restore size' }));
+    expect(
+      screen.getByRole('region', { name: 'Simulation results' }),
+    ).toHaveStyle({ flexBasis: '640px' });
+    fireEvent.keyDown(separator, { key: 'Home' });
+    expect(usePresentationStore.getState().resultsRatio).toBe(0.225);
+    act(() => useSimulationStore.getState().started('next-resize-run'));
+    expect(usePresentationStore.getState().resultsRatio).toBe(0.225);
   });
 
   it('shows a worker error even when no metrics arrived, and does not reset on collapse', () => {

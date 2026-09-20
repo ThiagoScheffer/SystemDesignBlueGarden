@@ -1,5 +1,15 @@
 # Editor, UI, and State Architecture
 
+## Workspace presentation controls
+
+The toolbar switches between light and dark blue themes. The system preference is used until an explicit choice is made. Theme preference, desktop sidebar visibility, and custom simulation height are stored locally, separately from architecture JSON and undo history. Storage failures fall back to defaults.
+
+Components and Inspector have independent hide controls and persistent reopening buttons. Narrow screens use panel navigation and Back to canvas. Opening component details or a diagnostic reveals the Inspector; ordinary selection does not reopen a manually hidden desktop panel.
+
+Auto-arrange lays out the whole graph left to right, groups cycles, and separates disconnected groups. It uses measured node sizes with 100px horizontal and 60px vertical clearance, includes disabled connections, and treats Regions as ordinary nodes. Position changes form one undoable operation; unchanged layouts do not add history. Arrangement is unavailable during running or paused simulations.
+
+The simulation results separator supports pointer dragging and keyboard controls: Up/Down adjust height, Home/End select bounds. Collapse retains the saved height; Expand uses 65% of workspace height and Restore returns to the saved proportion. Bounds preserve canvas space; short screens scroll internally. Reset simulation is a prominent blue action and does not reset workspace preferences.
+
 Last synchronized with source: **6 September 2026**
 
 ## 1. Editor design
@@ -114,13 +124,13 @@ Past and future snapshot lists are capped at approximately 50 documents.
 
 ### 8.4 Keyboard behavior
 
-| Action | Shortcut |
-| --- | --- |
-| Undo | `Ctrl/Cmd + Z` |
-| Redo | `Ctrl + Y`, `Ctrl/Cmd + Shift + Z` |
-| Toggle selected component information | `I` |
-| Delete selection | `Delete` / `Backspace` |
-| Close expanded information | `Escape` |
+| Action                                | Shortcut                           |
+| ------------------------------------- | ---------------------------------- |
+| Undo                                  | `Ctrl/Cmd + Z`                     |
+| Redo                                  | `Ctrl + Y`, `Ctrl/Cmd + Shift + Z` |
+| Toggle selected component information | `I`                                |
+| Delete selection                      | `Delete` / `Backspace`             |
+| Close expanded information            | `Escape`                           |
 
 Form controls are excluded from most global single-key operations so normal text editing is preserved.
 
