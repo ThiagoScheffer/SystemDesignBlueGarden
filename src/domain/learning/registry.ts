@@ -68,6 +68,7 @@ const challengeSchema = z.object({
     z.object({ id, label: z.string().min(1), hint: z.string().min(1) }),
   ),
   worksheetDefaults: z.object({
+    storedRecordBytes: z.number().nonnegative().optional(),
     activeUsers: z.number().nonnegative(),
     actionsPerUserPerDay: z.number().nonnegative(),
     readPercent: z.number().min(0).max(100),
@@ -143,6 +144,8 @@ const ruleSchema = z.discriminatedUnion('type', [
     componentTypes: z.array(componentType).min(1),
     minimum: z.number().int().positive(),
   }),
+  z.object({ type: z.literal('workload-path'), trafficType: z.enum(['read', 'write']), from: componentType, to: componentType, via: componentType.optional(), fromRole: z.string().optional(), toRole: z.string().optional(), asynchronous: z.boolean().optional() }),
+  z.object({ type: z.literal('workload-run'), trafficType: z.enum(['read', 'write']), maximumFailurePercent: z.number().min(0).max(100) }),
   z.object({
     type: z.literal('active-path'),
     componentTypes: z.array(componentType).min(2),

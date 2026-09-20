@@ -44,6 +44,10 @@ export function LearningRunComparison({
   return (
     <section className="learning-run-comparison">
       <h3>Run evidence</h3>
+      {left && right && <>
+        <p>Engine versions: {left.summary.engineVersion ?? 'legacy'} / {right.summary.engineVersion ?? 'legacy'}</p>
+        {(['read', 'write'] as const).map(kind => <div className="run-metric-row" key={kind}><strong>{kind} successful / failed req/s (final)</strong><span>{left.summary.workloads?.[kind] ? `${left.summary.workloads[kind].successfulRps.toLocaleString()} / ${left.summary.workloads[kind].failedRps.toLocaleString()}` : 'Not recorded'}</span><span>{right.summary.workloads?.[kind] ? `${right.summary.workloads[kind].successfulRps.toLocaleString()} / ${right.summary.workloads[kind].failedRps.toLocaleString()}` : 'Not recorded'}</span></div>)}
+      </>}
       {runs.length > 0 && (
         <div className="run-selectors">
           <label>

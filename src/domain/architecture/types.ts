@@ -37,7 +37,7 @@ export type NoteType =
   | 'improvement';
 
 export type ShardStrategy = 'hash' | 'range' | 'directory';
-export type WorkerRole = 'general' | 'cache-refresh';
+export type WorkerRole = 'general' | 'cache-refresh' | 'analytics-consumer' | 'cleanup';
 
 export interface OperationalConfig {
   capacity: number;
@@ -61,6 +61,17 @@ export interface OperationalConfig {
   lockTtlMs?: number;
   backgroundRefresh?: boolean;
   workerRole?: WorkerRole;
+  applicationRole?: 'general' | 'redirect' | 'url-creation' | 'id-generator';
+  rateLimitRps?: number;
+  idStrategy?: 'sequence' | 'pool';
+  idAlphabetSize?: number;
+  idKeyLength?: number;
+  idPoolSize?: number;
+  idBatchSize?: number;
+  atomicAllocation?: boolean;
+  lazyExpiration?: boolean;
+  backgroundCleanup?: boolean;
+  uniqueConditionalWrites?: boolean;
   [key: string]: string | number | boolean | undefined;
 }
 
@@ -134,7 +145,7 @@ export interface ProjectSettings {
 }
 
 export interface ArchitectureDocumentV1 {
-  schemaVersion: '1.4';
+  schemaVersion: '1.5';
   id: string;
   metadata: {
     name: string;

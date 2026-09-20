@@ -14,7 +14,12 @@ export type SimulationStatus =
   | 'cancelled'
   | 'error';
 
+export type WorkloadKind = 'read' | 'write';
+export interface WorkloadMetric { generatedRps: number; successfulRps: number; failedRps: number; averageLatencyMs: number; p95LatencyMs: number; }
+
 export interface TrafficSource {
+  trafficType?: WorkloadKind;
+  operation?: string;
   sourceNodeId: string;
   requestsPerSecond: number;
 }
@@ -27,6 +32,8 @@ interface ScenarioEventBase {
 export type ScenarioEvent =
   | (ScenarioEventBase & {
       type: 'TRAFFIC_SET';
+      trafficType?: WorkloadKind;
+      operation?: string;
       sourceNodeId: string;
       requestsPerSecond: number;
     })
@@ -92,6 +99,9 @@ export type DiagnosticSeverity = 'warning' | 'critical';
 export type DiagnosticTopic =
   'capacity' | 'latency' | 'cache' | 'queue' | 'sharding' | 'failure';
 export type DiagnosticCode =
+  | 'rate-limit-rejection'
+  | 'key-allocation-failure'
+  | 'key-pool-low'
   | 'component-unavailable'
   | 'capacity-rejection'
   | 'processing-failure'
@@ -122,6 +132,14 @@ export interface SimulationDiagnostic {
 }
 
 export interface NodeMetric {
+  readRps?: number;
+  writeRps?: number;
+  rateLimitedRps?: number;
+  idAllocatedRps?: number;
+  idAllocationFailedRps?: number;
+  idPoolRemaining?: number;
+  idTimeToExhaustionSeconds?: number | null;
+  idKeyspace?: string;
   incomingRps: number;
   offeredRps: number;
   processedRps: number;
@@ -186,6 +204,7 @@ export interface SimulationLogEntry {
 }
 
 export interface SimulationTick {
+  workloads?: Record<WorkloadKind, WorkloadMetric>;
   second: number;
   global: GlobalMetric;
   nodes: Record<string, NodeMetric>;
@@ -206,6 +225,8 @@ export interface BottleneckFinding {
 }
 
 export interface SimulationSummary {
+  engineVersion?: string;
+  workloads?: Record<WorkloadKind, WorkloadMetric>;
   runId: string;
   architectureId: string;
   architectureUpdatedAt: string;

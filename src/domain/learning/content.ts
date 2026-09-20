@@ -1,3 +1,4 @@
+import { createUrlShortener } from './urlShortener';
 import {
   createArchitectureDocument,
   createArchitectureEdge,
@@ -72,65 +73,6 @@ const templateSpecs: Record<
         [3, 4],
         [4, 5],
         [6, 4, 'async'],
-      ],
-    },
-  },
-  'url-shortener': {
-    starter: {
-      nodes: [
-        { type: 'client', x: 0, y: 120 },
-        { type: 'load-balancer', x: 190, y: 120 },
-        { type: 'api-gateway', x: 380, y: 120 },
-        { type: 'application-server', x: 570, y: 120 },
-        { type: 'cache', x: 760, y: 50 },
-        { type: 'nosql-database', x: 760, y: 190 },
-        { type: 'monitoring-service', x: 570, y: 270 },
-      ],
-      edges: [
-        [0, 1],
-        [1, 2],
-        [2, 3],
-        [3, 4],
-        [4, 5],
-        [3, 5],
-      ],
-    },
-    reference: {
-      nodes: [
-        { type: 'client', x: 0, y: 120 },
-        { type: 'cdn', x: 170, y: 120 },
-        { type: 'load-balancer', x: 340, y: 120 },
-        { type: 'api-gateway', x: 510, y: 120 },
-        {
-          type: 'application-server',
-          label: 'Redirect service A',
-          x: 690,
-          y: 60,
-        },
-        {
-          type: 'application-server',
-          label: 'Redirect service B',
-          x: 690,
-          y: 180,
-        },
-        { type: 'cache', x: 880, y: 30 },
-        { type: 'sharding', x: 880, y: 150 },
-        { type: 'nosql-database', label: 'Link shard A', x: 1060, y: 90 },
-        { type: 'nosql-database', label: 'Link shard B', x: 1060, y: 210 },
-        { type: 'monitoring-service', x: 700, y: 300 },
-      ],
-      edges: [
-        [0, 1],
-        [1, 2],
-        [2, 3],
-        [3, 4],
-        [3, 5],
-        [4, 6],
-        [5, 6],
-        [4, 7],
-        [5, 7],
-        [7, 8],
-        [7, 9],
       ],
     },
   },
@@ -400,7 +342,7 @@ export const learningTemplates = (
     },
     {
       id: 'url-shortener',
-      contentVersion: 1,
+      contentVersion: 2,
       title: 'URL Shortener',
       summary: 'A read-heavy redirect service with cached key lookup.',
       level: 'beginner',
@@ -632,7 +574,7 @@ export const challenges = (
     },
     {
       id: 'url-shortener',
-      contentVersion: 1,
+      contentVersion: 2,
       templateId: 'url-shortener',
       title: 'Design a URL Shortener',
       level: 'beginner',
@@ -652,26 +594,22 @@ export const challenges = (
         'Read-heavy scale',
       ],
       guidedSteps: steps,
-      worksheetDefaults: worksheet(1_000_000, 20, 95, 1, 8),
+      worksheetDefaults: { ...worksheet(86400, 19200, 19000 / 19200 * 100, 0.5, 1), retentionDays: 365 * 5, storedRecordBytes: 500 },
+      lessonIds: ['url-shortener-design'],
+      rubricId: 'url-shortener-rubric',
       incident: {
         id: 'url-viral',
         title: 'Viral link',
         hiddenDescription:
           'A production traffic change will be revealed when tested.',
-        revealedDescription: 'A link goes viral while the cache is bypassed.',
+        revealedDescription: 'Redirect reads rise to 60,000 requests per second while creation writes remain unchanged.',
         durationSeconds: 60,
         events: [
           {
             type: 'TRAFFIC_SET',
             componentType: 'client',
-            requestsPerSecond: 15_000,
+            requestsPerSecond: 60_000,
             atSecond: 15,
-          },
-          {
-            type: 'CACHE_BYPASS',
-            componentType: 'cache',
-            durationSeconds: 25,
-            atSecond: 20,
           },
         ],
       },
@@ -951,7 +889,7 @@ export const challenges = (
           {
             type: 'TRAFFIC_SET',
             componentType: 'client',
-            requestsPerSecond: 15_000,
+            requestsPerSecond: 60_000,
             atSecond: 10,
           },
           {
@@ -1005,6 +943,7 @@ export function createTemplateDocument(
   templateId: string,
   reference = false,
 ): ArchitectureDocumentV1 {
+  if (templateId === 'url-shortener') return createUrlShortener(reference);
   const template = getLearningTemplate(templateId);
   const spec = templateSpecs[templateId]?.[reference ? 'reference' : 'starter'];
   if (!template || !spec)
@@ -1027,6 +966,10 @@ export function createTemplateDocument(
     const node = createArchitectureNode(entry.type, { x: entry.x, y: entry.y });
     if (entry.label) node.data.label = entry.label;
     if (node.type === 'sharding') node.data.config.shardCount = 2;
+    if (templateId === 'cache-stampede') {
+      node.data.config.failureRate = 0;
+      if (['client', 'load-balancer', 'application-server', 'cache'].includes(node.type)) node.data.config.capacity = 20000;
+    }
     if (templateId === 'cache-stampede' && node.type === 'worker') {
       node.data.config.workerRole = 'cache-refresh';
     }

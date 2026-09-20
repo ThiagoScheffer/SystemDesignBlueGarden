@@ -57,6 +57,9 @@ export function buildNodeDiagnostics(
   previous?: NodeMetric,
 ): SimulationDiagnostic[] {
   const result: SimulationDiagnostic[] = [];
+  if ((metric.rateLimitedRps ?? 0) > 0) result.push(diagnostic(`${node.id}-admission`, 'rate-limit-rejection', 'capacity', 'error', 'warning', 'Admission limit reached', 'The aggregate per-second limit rejected requests before downstream processing. Adjust the limit or reduce offered demand.', metric.rateLimitedRps!, percent(metric.rateLimitedRps!, metric.incomingRps)));
+  if ((metric.idAllocationFailedRps ?? 0) > 0) result.push(diagnostic(`${node.id}-keys`, 'key-allocation-failure', 'capacity', 'error', 'critical', 'Key allocation failed', 'Check generator availability, throughput and remaining finite pool. Replenish keys or reduce creation demand.', metric.idAllocationFailedRps!, percent(metric.idAllocationFailedRps!, metric.incomingRps)));
+  if (metric.idTimeToExhaustionSeconds !== undefined && metric.idTimeToExhaustionSeconds !== null && metric.idTimeToExhaustionSeconds < 30 && metric.idPoolRemaining! > 0) result.push(diagnostic(`${node.id}-key-pool`, 'key-pool-low', 'capacity', 'bottleneck', 'warning', 'Key pool nearing exhaustion', `At current demand, remaining keys last approximately ${metric.idTimeToExhaustionSeconds} seconds without replenishment.`, metric.incomingRps, 100));
   const loadPercent = metric.loadRatio === null ? null : metric.loadRatio * 100;
 
   if (metric.status === 'failed' && metric.offeredRps > 0) {
@@ -75,7 +78,7 @@ export function buildNodeDiagnostics(
     );
   }
 
-  if (metric.rejectedRps > 0) {
+  if (metric.rejectedRps > (metric.rateLimitedRps ?? 0) && metric.idAllocationFailedRps === undefined) {
     const rejectedPercent = percent(metric.rejectedRps, metric.offeredRps);
     result.push(
       diagnostic(

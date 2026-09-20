@@ -221,6 +221,7 @@ export function ScenarioDrawer({
               ))}
             </div>
           </section>
+          {document.scenarios.length > 0 && <section><h3>Saved scenarios</h3><div className="preset-grid">{document.scenarios.map(scenario => <button type="button" key={scenario.id} onClick={() => setDraft(structuredClone(scenario))}>{scenario.name}</button>)}</div></section>}
           <section className="scenario-fields">
             <label>
               <span>Name</span>
@@ -262,28 +263,14 @@ export function ScenarioDrawer({
                 }
               />
             </label>
-            <label>
-              <span>Initial requests/second</span>
-              <input
-                type="number"
-                min="0"
-                value={draft.traffic[0]?.requestsPerSecond ?? 0}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    traffic: draft.traffic[0]
-                      ? [
-                          {
-                            ...draft.traffic[0],
-                            requestsPerSecond: Number(event.target.value),
-                          },
-                          ...draft.traffic.slice(1),
-                        ]
-                      : draft.traffic,
-                  })
-                }
-              />
-            </label>
+            {draft.traffic.map((source, index) => <div key={index} className="scenario-fields">
+              <label><span>Client source</span><select value={source.sourceNodeId} onChange={event => setDraft({ ...draft, traffic: draft.traffic.map((entry, i) => i === index ? { ...entry, sourceNodeId: event.target.value } : entry) })}>{document.nodes.filter(node => node.type === 'client').map(node => <option key={node.id} value={node.id}>{node.data.label}</option>)}</select></label>
+              <label><span>Workload</span><select value={source.trafficType ?? 'read'} onChange={event => setDraft({ ...draft, traffic: draft.traffic.map((entry, i) => i === index ? { ...entry, trafficType: event.target.value as 'read' | 'write' } : entry) })}><option value="read">Read</option><option value="write">Write</option></select></label>
+              <label><span>{index === 0 ? 'Initial requests/second' : 'Requests/second'}</span><input type="number" min="0" value={source.requestsPerSecond} onChange={event => setDraft({ ...draft, traffic: draft.traffic.map((entry, i) => i === index ? { ...entry, requestsPerSecond: Number(event.target.value) } : entry) })} /></label>
+              <label><span>Operation label</span><input maxLength={120} value={source.operation ?? ''} onChange={event => setDraft({ ...draft, traffic: draft.traffic.map((entry, i) => i === index ? { ...entry, operation: event.target.value } : entry) })} /></label>
+              <button type="button" onClick={() => setDraft({ ...draft, traffic: draft.traffic.filter((_, i) => i !== index) })}>Remove workload</button>
+            </div>)}
+            <button type="button" onClick={() => { const client = document.nodes.find(node => node.type === 'client'); if (client) setDraft({ ...draft, traffic: [...draft.traffic, { sourceNodeId: client.id, trafficType: 'write', requestsPerSecond: 200 }] }); }}>Add workload</button>
           </section>
           <section>
             <div className="scenario-section-heading">
@@ -400,6 +387,7 @@ export function ScenarioDrawer({
                       />
                     </label>
                   )}
+                  {event.type === 'TRAFFIC_SET' && <label><span>Workload to change</span><select value={event.trafficType ?? 'read'} onChange={change => updateEvent(event.id, { trafficType: change.target.value as 'read' | 'write' })}><option value="read">Read</option><option value="write">Write</option></select></label>}
                   {'requestsPerSecond' in event && (
                     <label>
                       <span>RPS</span>

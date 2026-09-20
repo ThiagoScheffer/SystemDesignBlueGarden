@@ -230,6 +230,8 @@ function SimulationResults({ onReset }: { onReset: () => void }) {
             {tab === 'Overview' &&
               (global ? (
                 <div className="timeline-card">
+                    <p>Engine {summary?.engineVersion ?? (summary ? 'legacy (unversioned)' : '2.0.0')}</p>
+                    {Object.entries(ticks.at(-1)?.workloads ?? summary?.workloads ?? {}).map(([kind, metric]) => <div key={kind} style={{ flexWrap: 'wrap', gap: '0.5rem' }}><strong>{kind === 'read' ? 'Reads / redirects' : 'Writes / creation'}</strong><span>{format(metric.generatedRps)} offered; {format(metric.successfulRps)} successful; {format(metric.failedRps)} failed req/s; P95 {format(metric.p95LatencyMs)} ms</span></div>)}
                   <div>
                     <span>Traffic</span>
                     <strong>{format(global.generatedRps, ' req/s')}</strong>

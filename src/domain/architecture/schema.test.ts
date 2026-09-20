@@ -41,12 +41,12 @@ describe('architecture document schema', () => {
 
     const migrated = parseArchitectureDocument(legacy);
 
-    expect(migrated.schemaVersion).toBe('1.4');
+    expect(migrated.schemaVersion).toBe('1.5');
     expect(migrated.scenarios).toEqual([]);
     expect(migrated.nodes[0].data.config.hitRatePercent).toBe(80);
   });
 
-  it('migrates a 1.1 document to 1.4 without changing its architecture ID', () => {
+  it('migrates a 1.1 document to 1.5 without changing its architecture ID', () => {
     const current = createArchitectureDocument('Version 1.1');
     const document = structuredClone(current) as unknown as Record<
       string,
@@ -57,7 +57,7 @@ describe('architecture document schema', () => {
 
     const migrated = parseArchitectureDocument(legacy);
 
-    expect(migrated.schemaVersion).toBe('1.4');
+    expect(migrated.schemaVersion).toBe('1.5');
     expect(migrated.id).toBe(current.id);
     expect(migrated.scenarios).toEqual([]);
   });
@@ -146,7 +146,7 @@ describe('architecture document schema', () => {
 
     const migrated = parseArchitectureDocument(legacy);
 
-    expect(migrated.schemaVersion).toBe('1.4');
+    expect(migrated.schemaVersion).toBe('1.5');
     expect(migrated.nodes[0].data.config).toMatchObject({
       ttlSeconds: 300,
       staleWindowSeconds: 0,

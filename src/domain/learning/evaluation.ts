@@ -112,6 +112,29 @@ function evaluateRule(
   document: ArchitectureDocumentV1,
   runs: LearningRunSnapshot[],
 ): { state: EvidenceState; evidence: string } {
+  if (rule.type === 'workload-run') {
+    const evidence = runs.filter(run => run.summary.engineVersion).map(run => run.summary.workloads?.[rule.trafficType]).filter(metric => metric && metric.generatedRps > 0);
+    const observed = evidence.some(metric => metric!.failedRps / metric!.generatedRps * 100 <= rule.maximumFailurePercent);
+    return { state: observed ? 'observed' : evidence.length ? 'partial' : 'not-represented', evidence: evidence.length ? `${rule.trafficType} completion evidence evaluated against ${rule.maximumFailurePercent}% maximum failure; inspect incident ticks separately.` : 'A versioned run with this workload is required.' };
+  }
+  if (rule.type === 'workload-path') {
+    const nodes = new Map(document.nodes.map(node => [node.id, node]));
+    const starts = document.nodes.filter(node => node.type === rule.from && (!rule.fromRole || node.data.config.applicationRole === rule.fromRole || node.data.config.workerRole === rule.fromRole));
+    const edges = document.edges.filter(edge => !edge.config.disabled && edge.config.trafficPercentage > 0 && (edge.config.trafficType === 'mixed' || edge.config.trafficType === rule.trafficType));
+    const pending = starts.map(node => ({ id: node.id, via: !rule.via || node.type === rule.via, async: false }));
+    const visited = new Set<string>();
+    let observed = false;
+    while (pending.length) {
+      const current = pending.pop()!;
+      const key = `${current.id}:${current.via}:${current.async}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      const node = nodes.get(current.id)!;
+      if (node.type === rule.to && current.via && (rule.asynchronous === undefined || current.async === rule.asynchronous) && (!rule.toRole || node.data.config.applicationRole === rule.toRole || node.data.config.workerRole === rule.toRole)) { observed = true; break; }
+      for (const edge of edges.filter(edge => edge.source === current.id)) pending.push({ id: edge.target, via: current.via || nodes.get(edge.target)?.type === rule.via, async: current.async || edge.config.mode === 'asynchronous' });
+    }
+    return { state: observed ? 'observed' : 'not-represented', evidence: observed ? `Active ${rule.trafficType} path observed through the configured semantic roles.` : `No eligible ${rule.trafficType} path connects the required roles.` };
+  }
   if (rule.type === 'component-count') {
     const count = document.nodes.filter((node) =>
       rule.componentTypes.includes(node.type),
@@ -237,7 +260,7 @@ function evaluateRule(
             ? value < rule.value
             : value <= rule.value;
     return {
-      state: observed
+      state: observed && runs.length > 0
         ? 'observed'
         : runs.length
           ? 'partial'
@@ -247,6 +270,7 @@ function evaluateRule(
         : 'No completed learning run is available.',
     };
   }
+  if (runs.length >= 2 && runs[0].summary.engineVersion !== runs.at(-1)?.summary.engineVersion) return { state: 'not-represented', evidence: 'Rerun both designs with the same engine version before comparing improvements.' };
   const first = runs[0]?.metrics[rule.metric];
   const latest = runs.at(-1)?.metrics[rule.metric];
   if (first === undefined || latest === undefined || runs.length < 2)

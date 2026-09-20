@@ -115,7 +115,7 @@ export function compileIncident(
     durationSeconds: blueprint.durationSeconds,
     ambientFailureRate:
       document.projectSettings.simulationDefaults.ambientFailureRate,
-    traffic: [
+    traffic: document.scenarios[0]?.traffic.some(source => source.trafficType) ? structuredClone(document.scenarios[0].traffic) : [
       {
         sourceNodeId: client.id,
         requestsPerSecond:

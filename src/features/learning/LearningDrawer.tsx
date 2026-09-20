@@ -18,6 +18,7 @@ const worksheetFields: Array<[keyof CapacityWorksheet, string, number]> = [
   ['actionsPerUserPerDay', 'Actions per user/day', 1],
   ['readPercent', 'Read traffic (%)', 1],
   ['averagePayloadKB', 'Average payload (KB)', 0.1],
+  ['storedRecordBytes', 'Stored record size (bytes per write)', 1],
   ['retentionDays', 'Retention (days)', 1],
   ['replicationFactor', 'Replication factor', 1],
   ['peakMultiplier', 'Peak multiplier', 0.1],
@@ -193,7 +194,7 @@ export function LearningDrawer({ controller }: { controller: Controller }) {
                 max={key === 'readPercent' ? 100 : undefined}
                 step={step}
                 disabled={locked}
-                value={attempt.worksheet[key]}
+                value={attempt.worksheet[key] ?? attempt.worksheet.averagePayloadKB * 1024}
                 onChange={(event) =>
                   controller.updateWorksheet({
                     ...attempt.worksheet,

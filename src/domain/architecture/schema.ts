@@ -5,7 +5,7 @@ import { createDefaultProjectSettings } from './projectSettings';
 
 const nonNegative = z.number().finite().nonnegative();
 
-const operationalConfigSchema = z
+export const operationalConfigSchema = z
   .object({
     capacity: nonNegative,
     baseLatencyMs: nonNegative,
@@ -38,7 +38,18 @@ const operationalConfigSchema = z
     lockWaitTimeoutMs: z.number().int().min(0).max(60_000).optional(),
     lockTtlMs: z.number().int().min(1).max(300_000).optional(),
     backgroundRefresh: z.boolean().optional(),
-    workerRole: z.enum(['general', 'cache-refresh']).optional(),
+    workerRole: z.enum(['general', 'cache-refresh', 'analytics-consumer', 'cleanup']).optional(),
+    applicationRole: z.enum(['general', 'redirect', 'url-creation', 'id-generator']).optional(),
+    rateLimitRps: nonNegative.optional(),
+    idStrategy: z.enum(['sequence', 'pool']).optional(),
+    idAlphabetSize: z.number().int().min(2).max(256).optional(),
+    idKeyLength: z.number().int().min(1).max(32).optional(),
+    idPoolSize: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+    idBatchSize: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+    atomicAllocation: z.boolean().optional(),
+    lazyExpiration: z.boolean().optional(),
+    backgroundCleanup: z.boolean().optional(),
+    uniqueConditionalWrites: z.boolean().optional(),
   })
   .catchall(z.union([z.string(), z.number(), z.boolean(), z.undefined()]));
 
@@ -352,7 +363,7 @@ const legacyV12ArchitectureDocumentSchema = z
 
 export const architectureDocumentSchema = z
   .object({
-    schemaVersion: z.literal('1.4'),
+    schemaVersion: z.literal('1.5'),
     id: z.string().min(1),
     metadata: metadataSchema,
     viewport: viewportSchema,
@@ -549,6 +560,11 @@ function migrateFromV13(
   };
 }
 
+function migrateFromV14<T extends { schemaVersion: string }>(document: T) {
+  // Optional role/config fields preserve general behavior; unclassified traffic is read demand.
+  return { ...document, schemaVersion: '1.5' as const };
+}
+
 export function parseArchitectureDocument(
   input: unknown,
 ): ArchitectureDocumentV1 {
@@ -570,7 +586,7 @@ export function parseArchitectureDocument(
     const migrated = migrateFromV13(
       legacyV13ArchitectureDocumentSchema.parse(migratedV13),
     );
-    return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
+    return architectureDocumentSchema.parse(migrateFromV14(migrated)) as ArchitectureDocumentV1;
   }
   if (version === '1.1') {
     const migratedV12 = migrateFromV11(
@@ -582,7 +598,7 @@ export function parseArchitectureDocument(
     const migrated = migrateFromV13(
       legacyV13ArchitectureDocumentSchema.parse(migratedV13),
     );
-    return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
+    return architectureDocumentSchema.parse(migrateFromV14(migrated)) as ArchitectureDocumentV1;
   }
   if (version === '1.2') {
     const migratedV13 = migrateFromV12(
@@ -591,17 +607,19 @@ export function parseArchitectureDocument(
     const migrated = migrateFromV13(
       legacyV13ArchitectureDocumentSchema.parse(migratedV13),
     );
-    return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
+    return architectureDocumentSchema.parse(migrateFromV14(migrated)) as ArchitectureDocumentV1;
   }
   if (version === '1.3') {
     const migrated = migrateFromV13(
       legacyV13ArchitectureDocumentSchema.parse(input),
     );
-    return architectureDocumentSchema.parse(migrated) as ArchitectureDocumentV1;
+    return architectureDocumentSchema.parse(migrateFromV14(migrated)) as ArchitectureDocumentV1;
   }
   if (version === '1.4') {
-    return architectureDocumentSchema.parse(input) as ArchitectureDocumentV1;
+    const legacy = z.object({ ...architectureDocumentSchema.shape, schemaVersion: z.literal('1.4') }).parse(input);
+    return architectureDocumentSchema.parse(migrateFromV14(legacy)) as ArchitectureDocumentV1;
   }
+  if (version === '1.5') return architectureDocumentSchema.parse(input) as ArchitectureDocumentV1;
   throw new Error(
     `Unsupported architecture schema version: ${String(version)}`,
   );

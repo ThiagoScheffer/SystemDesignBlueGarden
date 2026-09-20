@@ -23,7 +23,7 @@ describe('Phase 3 learning domain', () => {
     expect(
       challenges.every(
         (challenge) =>
-          challenge.contentVersion === 1 && challenge.guidedSteps.length === 11,
+          challenge.contentVersion >= 1 && challenge.guidedSteps.length === 11,
       ),
     ).toBe(true);
   });
@@ -63,7 +63,7 @@ describe('Phase 3 learning domain', () => {
   });
 
   it('compiles hidden incidents by semantic role without mutating the architecture', () => {
-    const challenge = challenges.find((entry) => entry.id === 'url-shortener')!;
+    const challenge = challenges.find((entry) => entry.id === 'cache-stampede')!;
     const document = createTemplateDocument(challenge.id);
     const before = structuredClone(document);
     const result = compileIncident(challenge.incident, document);

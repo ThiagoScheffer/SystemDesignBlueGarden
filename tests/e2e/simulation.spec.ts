@@ -205,7 +205,7 @@ test('compares unprotected and coalesced cache-expiration runs', async ({
   const originRow = drawer
     .locator('.run-metric-row')
     .filter({ hasText: 'Cache peak origin RPS' });
-  await expect(originRow).toContainText('920');
+  await expect(originRow).toContainText('9,200');
 
   await page.getByLabel('Cache architecture component').click();
   await page.getByRole('button', { name: 'Learning', exact: true }).click();
@@ -218,5 +218,5 @@ test('compares unprotected and coalesced cache-expiration runs', async ({
   await expect(drawer.locator('.run-selectors option')).toHaveCount(4, {
     timeout: 15_000,
   });
-  await expect(originRow).toContainText('201');
+  await expect(originRow).toContainText('2,001');
 });

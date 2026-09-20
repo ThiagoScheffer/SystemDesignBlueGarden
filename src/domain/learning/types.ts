@@ -13,6 +13,7 @@ export type LearningMode = 'guided' | 'interview';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
 
 export interface CapacityWorksheet {
+  storedRecordBytes?: number;
   activeUsers: number;
   actionsPerUserPerDay: number;
   readPercent: number;
@@ -23,6 +24,10 @@ export interface CapacityWorksheet {
 }
 
 export interface CapacityEstimate {
+  averageReadRps: number;
+  averageWriteRps: number;
+  writeRecordsPerDay: number;
+  bandwidthMbps: number;
   averageRps: number;
   peakRps: number;
   readRps: number;
@@ -101,6 +106,9 @@ export interface ChallengeCriterion {
 
 export type EvidenceState = 'observed' | 'partial' | 'not-represented';
 export type EvaluationRule =
+  | { type: 'workload-path'; trafficType: 'read' | 'write'; from: ComponentType; to: ComponentType; via?: ComponentType; fromRole?: string; toRole?: string; asynchronous?: boolean }
+  | { type: 'workload-run'; trafficType: 'read' | 'write'; maximumFailurePercent: number }
+
   | {
       type: 'component-count';
       componentTypes: ComponentType[];

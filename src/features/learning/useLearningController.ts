@@ -1,3 +1,4 @@
+import { parseArchitectureDocument } from '../../domain/architecture/schema';
 import { useCallback, useEffect } from 'react';
 import type {
   ArchitectureDocumentV1,
@@ -166,7 +167,7 @@ export function useLearningController(
   const switchProject = useCallback(
     async (next: ArchitectureDocumentV1) => {
       await saveProject(useEditorStore.getState().document);
-      hydrateDocument(next);
+      hydrateDocument(parseArchitectureDocument(next));
       await saveProject(next);
       useSimulationStore.getState().reset();
     },
@@ -314,7 +315,13 @@ export function useLearningController(
         traffic: [
           {
             sourceNodeId: client.id,
-            requestsPerSecond: Math.round(estimate.averageRps),
+            requestsPerSecond: estimate.averageReadRps,
+              trafficType: 'read',
+            },
+            {
+              sourceNodeId: client.id,
+              requestsPerSecond: estimate.averageWriteRps,
+              trafficType: 'write',
           },
         ],
         events: [],

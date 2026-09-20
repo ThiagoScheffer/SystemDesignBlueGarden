@@ -1,3 +1,4 @@
+import { operationalConfigSchema } from '../architecture/schema';
 import type {
   ArchitectureEdgeV1,
   ArchitectureNodeV1,
@@ -39,6 +40,11 @@ export function runPreflight(
     }
   }
 
+  for (const node of nodes) {
+    const config = operationalConfigSchema.safeParse(node.data.config);
+    if (!config.success) errors.push(finding('error', 'INVALID_CONFIG', `${node.data.label}: ${config.error.issues.map(issue => issue.message).join('; ')}`, { nodeId: node.id }));
+  }
+  for (const edge of edges) if (!Number.isFinite(edge.config.trafficPercentage) || edge.config.trafficPercentage < 0 || edge.config.trafficPercentage > 100) errors.push(finding('error', 'INVALID_ROUTE_WEIGHT', 'Route weights must be finite values between 0 and 100.', { edgeId: edge.id }));
   const operational = nodes.filter(isOperational);
   const activeEdges = edges.filter((edge) => !edge.config.disabled);
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -192,6 +198,7 @@ export function runPreflight(
       0,
     );
     if (
+      node.type !== 'load-balancer' &&
       node.type !== 'sharding' &&
       node.type !== 'message-queue' &&
       fanout > 300

@@ -58,10 +58,11 @@ function NumberField({
   onBegin: () => void;
   onCommit: () => void;
 }) {
+  const locked = useSimulationStore(state => isSimulationLocked(state.status));
   return (
     <label className="form-field">
       <span>{label}</span>
-      <input
+      <input disabled={locked}
         type="number"
         min="0"
         step={step}
@@ -282,7 +283,7 @@ export function Inspector() {
           )}
           <label className="form-field">
             <span>Name</span>
-            <input
+            <input disabled={locked}
               value={node.data.label}
               onFocus={beginTransaction}
               onChange={(event) =>
@@ -311,7 +312,7 @@ export function Inspector() {
             <>
               <label className="form-field">
                 <span>Note type</span>
-                <select
+                <select disabled={locked}
                   value={node.data.config.noteType}
                   onFocus={beginTransaction}
                   onChange={(event) =>
@@ -361,7 +362,7 @@ export function Inspector() {
                 <span>
                   Cache hit rate ({node.data.config.hitRatePercent ?? 80}%)
                 </span>
-                <input
+                <input disabled={locked}
                   type="range"
                   min="0"
                   max="100"
@@ -421,7 +422,7 @@ export function Inspector() {
                 ['backgroundRefresh', 'Background refresh'],
               ].map(([key, label]) => (
                 <label className="check-field" key={key}>
-                  <input
+                  <input disabled={locked}
                     type="checkbox"
                     checked={Boolean(node.data.config[key])}
                     onFocus={beginTransaction}
@@ -467,17 +468,36 @@ export function Inspector() {
               )}
             </div>
           )}
+          {node.type === 'application-server' && <>
+            <label className="form-field"><span>Application role</span>
+              <select disabled={locked} value={node.data.config.applicationRole ?? 'general'} onFocus={beginTransaction} onBlur={commitTransaction} onChange={event => updateNodeTransient(node.id, { config: { applicationRole: event.target.value as 'general' | 'redirect' | 'url-creation' | 'id-generator' } })}>
+                <option value="general">General</option><option value="redirect">Redirect</option><option value="url-creation">URL creation</option><option value="id-generator">ID generator</option>
+              </select>
+            </label>
+            {node.data.config.applicationRole === 'id-generator' && <>
+              <label className="form-field"><span>Allocation strategy</span><select disabled={locked} value={node.data.config.idStrategy ?? 'sequence'} onFocus={beginTransaction} onBlur={commitTransaction} onChange={event => updateNodeTransient(node.id, { config: { idStrategy: event.target.value as 'sequence' | 'pool' } })}><option value="sequence">Monotonic sequence</option><option value="pool">Pre-generated finite pool</option></select></label>
+              {([{ key: 'idAlphabetSize', label: 'Alphabet size (2-256)', fallback: 62 }, { key: 'idKeyLength', label: 'Key length (1-32)', fallback: 7 }, { key: 'idPoolSize', label: 'Available keys at run start', fallback: 100000 }, { key: 'idBatchSize', label: 'Keys allocated per request', fallback: 1 }] as const).map(field => <NumberField key={field.key} label={field.label} value={node.data.config[field.key] ?? field.fallback} onBegin={beginTransaction} onCommit={commitTransaction} onChange={value => updateNodeTransient(node.id, { config: { [field.key]: Math.max(field.key === 'idPoolSize' ? 0 : field.key === 'idAlphabetSize' ? 2 : 1, Math.min(field.key === 'idKeyLength' ? 32 : field.key === 'idAlphabetSize' ? 256 : Number.MAX_SAFE_INTEGER, Math.round(value))) } })} />)}
+              <p>Allocation uses the configured batch size. Pool allocation is atomic within this component; independent generators do not coordinate namespaces.</p>
+            </>}
+          </>}
+          {node.type === 'api-gateway' && <>
+            <label className="check-field"><input disabled={locked} type="checkbox" checked={node.data.config.rateLimitRps !== undefined} onFocus={beginTransaction} onBlur={commitTransaction} onChange={event => updateNodeTransient(node.id, { config: { rateLimitRps: event.target.checked ? 20000 : undefined } })} /><span>Enable aggregate rate limit</span></label>
+            {node.data.config.rateLimitRps !== undefined && <NumberField label="Admission limit (requests/second)" value={node.data.config.rateLimitRps} onBegin={beginTransaction} onCommit={commitTransaction} onChange={rateLimitRps => updateNodeTransient(node.id, { config: { rateLimitRps: Math.max(0, rateLimitRps) } })} />}
+          </>}
+          {['sql-database', 'nosql-database'].includes(node.type) && <>
+            {([{ key: 'lazyExpiration', label: 'Lazy expiration (metadata)' }, { key: 'backgroundCleanup', label: 'Background cleanup (metadata)' }, { key: 'uniqueConditionalWrites', label: 'Unique conditional writes (metadata)' }] as const).map(field => <label className="check-field" key={field.key}><input disabled={locked} type="checkbox" checked={Boolean(node.data.config[field.key])} onFocus={beginTransaction} onBlur={commitTransaction} onChange={event => updateNodeTransient(node.id, { config: { [field.key]: event.target.checked } })} /><span>{field.label}</span></label>)}
+          </>}
           {node.type === 'worker' && (
             <label className="form-field">
               <span>Worker role</span>
-              <select
+              <select disabled={locked}
                 value={node.data.config.workerRole ?? 'general'}
                 onFocus={beginTransaction}
                 onChange={(event) =>
                   updateNodeTransient(node.id, {
                     config: {
                       workerRole: event.target.value as
-                        'general' | 'cache-refresh',
+                        'general' | 'cache-refresh' | 'analytics-consumer' | 'cleanup',
                     },
                   })
                 }
@@ -485,6 +505,8 @@ export function Inspector() {
               >
                 <option value="general">General</option>
                 <option value="cache-refresh">Cache refresh</option>
+                  <option value="analytics-consumer">Analytics consumer</option>
+                  <option value="cleanup">Cleanup (metadata)</option>
               </select>
             </label>
           )}
@@ -503,7 +525,7 @@ export function Inspector() {
               />
               <label className="form-field">
                 <span>Shard key</span>
-                <input
+                <input disabled={locked}
                   value={node.data.config.shardKey ?? 'userId'}
                   onFocus={beginTransaction}
                   onChange={(event) =>
@@ -516,7 +538,7 @@ export function Inspector() {
               </label>
               <label className="form-field">
                 <span>Shard strategy</span>
-                <select
+                <select disabled={locked}
                   value={node.data.config.shardStrategy ?? 'hash'}
                   onFocus={beginTransaction}
                   onChange={(event) =>
@@ -557,6 +579,7 @@ export function Inspector() {
           )}
           <button
             className="danger-button"
+            disabled={locked}
             type="button"
             onClick={deleteSelection}
           >
@@ -566,10 +589,10 @@ export function Inspector() {
       )}
 
       {edge && (
-        <div className="inspector-form">
+        <fieldset className="inspector-form" disabled={locked}>
           <label className="form-field">
             <span>Label</span>
-            <input
+            <input disabled={locked}
               value={edge.label ?? ''}
               placeholder={edge.config.protocol}
               onFocus={beginTransaction}
@@ -581,7 +604,7 @@ export function Inspector() {
           </label>
           <label className="form-field">
             <span>Protocol</span>
-            <select
+            <select disabled={locked}
               value={edge.config.protocol}
               onFocus={beginTransaction}
               onChange={(event) =>
@@ -600,7 +623,7 @@ export function Inspector() {
           </label>
           <label className="form-field">
             <span>Mode</span>
-            <select
+            <select disabled={locked}
               value={edge.config.mode}
               onFocus={beginTransaction}
               onChange={(event) =>
@@ -614,6 +637,9 @@ export function Inspector() {
               <option value="asynchronous">Asynchronous</option>
             </select>
           </label>
+          <label className="form-field"><span>Traffic type</span><select disabled={locked} value={edge.config.trafficType} onFocus={beginTransaction} onBlur={commitTransaction} onChange={event => updateEdgeTransient(edge.id, { config: { trafficType: event.target.value as EdgeConfig['trafficType'] } })}><option value="mixed">Mixed: reads and writes</option><option value="read">Read</option><option value="write">Write</option></select></label>
+          <NumberField label="Routing weight / dependency percentage (0-100)" value={edge.config.trafficPercentage} onBegin={beginTransaction} onCommit={commitTransaction} onChange={value => updateEdgeTransient(edge.id, { config: { trafficPercentage: Math.min(100, Math.max(0, value)) } })} />
+          <p>Load balancers, shards and queues normalize eligible route weights. Other components invoke each dependency at this percentage. This does not increase capacity.</p>
           <NumberField
             label="Latency (ms)"
             value={edge.config.latencyMs}
@@ -642,7 +668,7 @@ export function Inspector() {
             onCommit={commitTransaction}
           />
           <label className="check-field">
-            <input
+            <input disabled={locked}
               type="checkbox"
               checked={edge.config.encrypted}
               onFocus={beginTransaction}
@@ -656,7 +682,7 @@ export function Inspector() {
             <span>Encrypted connection</span>
           </label>
           <label className="check-field">
-            <input
+            <input disabled={locked}
               type="checkbox"
               checked={edge.config.monitored}
               onFocus={beginTransaction}
@@ -670,7 +696,7 @@ export function Inspector() {
             <span>Monitored connection</span>
           </label>
           <label className="check-field">
-            <input
+            <input disabled={locked}
               type="checkbox"
               checked={edge.config.disabled}
               onFocus={beginTransaction}
@@ -685,12 +711,13 @@ export function Inspector() {
           </label>
           <button
             className="danger-button"
+            disabled={locked}
             type="button"
             onClick={deleteSelection}
           >
             <Trash2 aria-hidden="true" size={15} /> Delete connection
           </button>
-        </div>
+        </fieldset>
       )}
     </aside>
   );

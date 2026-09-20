@@ -7,6 +7,14 @@ type MetricKey = Exclude<
 type Format = 'rps' | 'ms' | 'percent' | 'count' | 'text';
 export const metricPresentation = {
   status: ['Status', 'text'],
+  readRps: ['Read traffic', 'rps'],
+  writeRps: ['Write traffic', 'rps'],
+  rateLimitedRps: ['Rate limited requests', 'rps'],
+  idAllocatedRps: ['Keys allocated', 'rps'],
+  idAllocationFailedRps: ['Key allocation failures', 'rps'],
+  idPoolRemaining: ['Keys remaining', 'count'],
+  idTimeToExhaustionSeconds: ['Pool exhaustion estimate (seconds)', 'count'],
+  idKeyspace: ['Keyspace cardinality', 'text'],
   incomingRps: ['Incoming traffic', 'rps'],
   offeredRps: ['Offered traffic', 'rps'],
   processedRps: ['Processed traffic', 'rps'],

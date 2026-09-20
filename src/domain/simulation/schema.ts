@@ -11,6 +11,8 @@ export const scenarioEventSchema = z.discriminatedUnion('type', [
     type: z.literal('TRAFFIC_SET'),
     sourceNodeId: z.string().min(1),
     requestsPerSecond: z.number().finite().nonnegative(),
+    trafficType: z.enum(['read', 'write']).optional(),
+    operation: z.string().max(120).optional(),
   }),
   z.object({
     ...eventBase,
@@ -66,6 +68,8 @@ export const simulationScenarioSchema = z
       z.object({
         sourceNodeId: z.string().min(1),
         requestsPerSecond: z.number().finite().nonnegative(),
+    trafficType: z.enum(['read', 'write']).optional(),
+    operation: z.string().max(120).optional(),
       }),
     ),
     events: z.array(scenarioEventSchema),

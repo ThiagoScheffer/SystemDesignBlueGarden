@@ -27,10 +27,15 @@ export function calculateCapacity(
   const averageRps = actionsPerDay / 86_400;
   const peakRps = averageRps * worksheet.peakMultiplier;
   const readRatio = Math.min(100, worksheet.readPercent) / 100;
-  const dailyStorageGB =
-    (actionsPerDay * worksheet.averagePayloadKB) / 1_048_576;
+  const writesPerDay = actionsPerDay * (1 - readRatio);
+  const dailyStorageGB = writesPerDay * (worksheet.storedRecordBytes ?? worksheet.averagePayloadKB * 1024) / 1_073_741_824;
+  const dailyTrafficGB = actionsPerDay * worksheet.averagePayloadKB / 1_048_576;
   return {
     averageRps: round(averageRps),
+    averageReadRps: round(averageRps * readRatio),
+    averageWriteRps: round(averageRps * (1 - readRatio)),
+    writeRecordsPerDay: round(writesPerDay),
+    bandwidthMbps: round(peakRps * worksheet.averagePayloadKB * 1024 * 8 / 1_000_000),
     peakRps: round(peakRps),
     readRps: round(peakRps * readRatio),
     writeRps: round(peakRps * (1 - readRatio)),
@@ -38,6 +43,6 @@ export function calculateCapacity(
     retainedStorageGB: round(
       dailyStorageGB * worksheet.retentionDays * worksheet.replicationFactor,
     ),
-    monthlyTrafficGB: round(dailyStorageGB * 30),
+    monthlyTrafficGB: round(dailyTrafficGB * 30),
   };
 }

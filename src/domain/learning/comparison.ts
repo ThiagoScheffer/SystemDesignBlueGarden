@@ -51,6 +51,7 @@ export function alignReferenceScenario(
     traffic: referenceScenario.traffic.map((source, index) => ({
       ...source,
       requestsPerSecond:
+        userScenario.traffic.find(candidate => (candidate.trafficType ?? 'read') === (source.trafficType ?? 'read'))?.requestsPerSecond ??
         userScenario.traffic[index]?.requestsPerSecond ??
         userScenario.traffic[0]?.requestsPerSecond ??
         source.requestsPerSecond,
