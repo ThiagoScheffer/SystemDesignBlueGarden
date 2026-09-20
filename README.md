@@ -1,43 +1,100 @@
 # Blue Garden
 
-Blue Garden is an interactive system-design laboratory with a structured architecture editor and deterministic browser-based simulator.
+> An interactive system-design laboratory for building architectures, simulating failure, and learning from the results.
 
-## Current implementation
+Blue Garden is a local-first browser application that turns system design into an executable learning loop:
 
-The first editor foundation includes:
+**Build → Configure → Simulate → Diagnose → Improve → Compare**
 
-- React 19, TypeScript, and Vite application scaffold.
-- Infinite React Flow canvas with pan, zoom, minimap, snap-to-grid, and directed connections.
-- Searchable library containing all 16 Phase 1 components, including a configurable Sharding router.
-- Component and connection inspectors with Basic and Advanced configuration.
-- One-second educational node tooltips and double-click information cards.
-- Cache hit-rate controls and per-node implementation notes.
-- Typed architecture notes.
-- Library-independent, versioned `ArchitectureDocumentV1` schema with Zod validation.
-- Transactional undo and redo that coalesces continuous editor input.
-- IndexedDB autosave using Dexie.
-- Validated JSON import and JSON export.
-- Keyboard shortcuts for undo, redo, and deletion.
-- Aggregate one-second simulation in a cancellable Web Worker.
-- Baseline traffic plus six configurable incident presets.
-- Capacity, backlog, Cache, Sharding, Queue, retry, failure, latency, throughput, and cost modeling.
-- Run, pause, resume, reset, and `1×`, `4×`, `16×`, or `MAX` speed controls.
-- Live canvas utilization overlays, KPI timelines, event navigation, and explainable bottleneck findings.
-- Scenario JSON persistence and retention of the ten newest completed runs per architecture.
-- Undoable Project Settings for scale, audience, complexity, simulation defaults, and export-only visibility metadata.
-- Advisory architecture assessment driven by project requirements.
-- Port and connection context menus with disconnect, reverse, duplicate, label, monitoring, disable, and endpoint reconnection operations.
-- Disabled-path simulation exclusion and independently combined ambient failure probability.
-- Local Learning Studio with six editable templates and six guided/interview challenges, including the Cache Stampede Lab.
-- Structured learning registries and persisted, score-free before/after run evidence.
-- Capacity-estimation worksheets, soft interview timers, semantic hidden incidents, and resumable attempt history.
-- Neutral evidence comparison between submitted and curated reference architectures without scoring.
+Instead of drawing a static diagram, you model a system with typed components, run configurable traffic scenarios, inspect bottlenecks, and use guided exercises to develop stronger architecture instincts.
 
-Region containment and full clipboard/multi-select behavior remain in the editor backlog.
+## Preview
+
+### Build an architecture
+
+<p align="center">
+  <img src="Media/BluegardenSystemDesign01.jpg" alt="Blue Garden architecture editor with a component library and canvas" width="100%" />
+</p>
+
+### Practice in Learning Studio
+
+<p align="center">
+  <img src="Media/BluegardenSystemDesign02.jpg" alt="Blue Garden Learning Studio with guided system design challenges" width="100%" />
+</p>
+
+### Run a scenario and inspect live metrics
+
+<p align="center">
+  <img src="Media/BluegardenSystemDesign03.jpg" alt="Blue Garden live simulation showing architecture health and KPIs" width="100%" />
+</p>
+
+### Diagnose failures and bottlenecks
+
+<p align="center">
+  <img src="Media/BluegardenSystemDesign04.jpg" alt="Blue Garden simulation diagnostic showing rejected requests and likely causes" width="100%" />
+</p>
+
+## What you can do
+
+### Model
+
+- Compose architectures on an infinite React Flow canvas.
+- Choose from 16 typed system components, including clients, gateways, caches, queues, databases, workers, sharding routers, and monitoring services.
+- Configure operational behavior through Basic and Advanced inspector panels.
+- Create, reconnect, label, reverse, duplicate, monitor, disable, and disconnect directed connections.
+- Save typed project requirements and receive advisory architecture feedback.
+
+### Simulate
+
+- Run deterministic, aggregate browser simulations in a cancellable Web Worker.
+- Configure baseline traffic and incident scenarios such as traffic spikes, node failures, capacity pressure, latency, retries, queue injection, cache bypass, and cache-key expiration.
+- Explore capacity, throughput, latency, queue backlog, cache behavior, sharding, failure, retry amplification, and estimated cost.
+- Control presentation speed at `1×`, `4×`, `16×`, or `MAX` while keeping the underlying run deterministic.
+- Follow live canvas overlays, KPI timelines, event logs, and explainable bottleneck findings.
+
+### Learn
+
+- Work through guided challenges and interview-style practice sessions.
+- Use six editable learning templates, including URL Shortener, Rate Limiter, News Feed, File Storage, E-commerce Checkout, and Cache Stampede exercises.
+- See contextual concepts, questions, learning tips, capacity worksheets, and semantic incidents.
+- Compare submitted and curated reference architectures as neutral evidence rather than receiving a simplistic score.
+
+### Persist and iterate
+
+- Autosave projects locally with IndexedDB through Dexie.
+- Import and export validated JSON architecture documents.
+- Keep simulation runs and learning attempts separate from the canonical architecture document.
+- Migrate supported legacy architecture schemas safely before loading them into the editor.
+- Use transactional undo/redo with coalesced continuous input.
+
+## Engineering highlights
+
+Blue Garden is designed as a product-sized frontend exercise, not just a canvas demo:
+
+- **Domain model first:** the persisted `ArchitectureDocumentV1` contract is independent of React Flow, so the renderer is not the source of truth.
+- **Explicit boundaries:** React UI, Zustand state, the typed domain model, IndexedDB persistence, and the simulation Worker communicate through focused interfaces.
+- **Validated data:** Zod schemas enforce graph invariants, configuration rules, scenario references, and migration behavior.
+- **Deterministic execution:** the simulation engine uses aggregate expected values to make high-volume scenarios fast, repeatable, and explainable.
+- **Evidence-oriented learning:** diagnostics and comparisons expose trade-offs without pretending that one architecture is universally correct.
+- **Tested behavior:** the project includes domain, engine, component/store, and Playwright end-to-end tests.
+
+## Technology
+
+| Area                 | Tools                               |
+| -------------------- | ----------------------------------- |
+| UI                   | React 19, TypeScript                |
+| Build                | Vite                                |
+| Architecture canvas  | `@xyflow/react` / React Flow        |
+| Client state         | Zustand                             |
+| Validation           | Zod                                 |
+| Local persistence    | Dexie + IndexedDB                   |
+| Simulation isolation | Native module Web Worker            |
+| Testing              | Vitest, Testing Library, Playwright |
+| Quality              | ESLint, Prettier, strict TypeScript |
 
 ## Run locally
 
-Requirements: Node.js 22 or newer and npm.
+Requirements: Node.js 22+ and npm.
 
 ```bash
 npm install
@@ -58,34 +115,33 @@ npm run format:check
 
 ## Editor shortcuts
 
-| Action                | Windows/Linux              | macOS                   |
-| --------------------- | -------------------------- | ----------------------- |
-| Undo                  | `Ctrl+Z`                   | `Cmd+Z`                 |
-| Redo                  | `Ctrl+Y` or `Ctrl+Shift+Z` | `Cmd+Shift+Z`           |
-| Component information | `I`                        | `I`                     |
-| Close information     | `Escape`                   | `Escape`                |
-| Delete selection      | `Delete` or `Backspace`    | `Delete` or `Backspace` |
+| Action                     | Windows/Linux              | macOS                   |
+| -------------------------- | -------------------------- | ----------------------- |
+| Undo                       | `Ctrl+Z`                   | `Cmd+Z`                 |
+| Redo                       | `Ctrl+Y` or `Ctrl+Shift+Z` | `Cmd+Shift+Z`           |
+| Open component information | `I`                        | `I`                     |
+| Close information          | `Escape`                   | `Escape`                |
+| Delete selection           | `Delete` or `Backspace`    | `Delete` or `Backspace` |
 
-## Architecture format
+## Project boundaries
 
-The canonical document is independent of React Flow. Its current schema version is `1.4`, defined in `src/domain/architecture/schema.ts`, and its TypeScript contract is in `src/domain/architecture/types.ts`.
+The current application runs entirely in the browser. It does not currently include accounts, a backend, cloud provisioning, collaboration, remote project storage, or AI grading. Simulation output is an educational estimate based on configured assumptions, not a production capacity guarantee.
 
-Schema `1.0` through `1.3` files and IndexedDB projects are validated and migrated to `1.4` when loaded. Schema 1.4 adds explicit Cache Stampede configuration and cache-refresh Worker roles. Completed run results remain in IndexedDB rather than architecture JSON. Unknown versions are rejected before the active design is replaced.
+Some editor capabilities remain on the roadmap, including full region containment, multi-select workflows, general clipboard behavior, and comprehensive mobile editing.
 
-## Simulator
+## Documentation
 
-Configure a scenario from the top bar, then run it against an immutable architecture snapshot. Editing is locked while a run is active or paused. Results are educational estimates derived from configured assumptions and should not be treated as production guarantees.
+- [System overview](docs/architecture/00-system-overview.md)
+- [Runtime architecture](docs/architecture/01-runtime-architecture.md)
+- [Domain model and schema](docs/architecture/02-domain-model-and-schema.md)
+- [Editor, UI, and state](docs/architecture/03-editor-ui-and-state.md)
+- [Simulation engine](docs/architecture/04-simulation-engine.md)
+- [Learning Studio](docs/architecture/05-learning-studio.md)
+- [Persistence and data lifecycle](docs/architecture/06-persistence-and-data-lifecycle.md)
+- [Testing and quality](docs/architecture/08-testing-and-quality.md)
+- [Architecture decision records](docs/decisions/README.md)
+- [System-design interview reference material](docs/DesignInterv/README.md)
 
-## Component education
+## License
 
-Hover over any canvas component for one second to see its description and a small example. Double-click it, or select it and press `I`, to open the full information card below the node. Cache cards include a persisted hit-rate control, and every component card accepts Markdown-compatible implementation notes.
-
-During a learning attempt, recommended components are highlighted in the library. The Inspector Learning tab shows contextual concepts, questions, and deterministic evidence. Cache nodes expose TTL, stale-window, jitter, coalescing, locking, and background-refresh settings; Workers can be assigned the Cache refresh role.
-
-## Product documents
-
-- [Main product design](docs/MaindesignPlan.md)
-- [Phase 1 implementation plan](docs/Phase1Plan.md)
-- [Phase 2 simulator plan](docs/Phase2Plan.md)
-- [Phase 3 learning plan](docs/Phase3Plan.md)
-- [Current application state](docs/Current_App_state.md)
+This project is currently a private portfolio project.
